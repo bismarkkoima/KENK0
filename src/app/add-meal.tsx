@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Chip, Field, Screen, SectionTitle } from '@/components/ui';
@@ -35,12 +35,20 @@ function defaultMealType(): MealType {
 
 export default function AddMealScreen() {
   const theme = useTheme();
-  const params = useLocalSearchParams<{ day?: string; mealType?: MealType }>();
+  const params = useLocalSearchParams<{ day?: string; mealType?: MealType; food?: string }>();
   const day = params.day ?? toDayKey();
   const [mealType, setMealType] = useState<MealType>(params.mealType ?? defaultMealType());
   const [form, setForm] = useState<Form>(EMPTY_FORM);
   const [selected, setSelected] = useState<FoodResult | null>(null);
   const [grams, setGrams] = useState('100');
+
+  // The barcode scanner returns here with the scanned food in the `food` param.
+  const [scannedParam, setScannedParam] = useState<string | undefined>(undefined);
+  if (params.food && params.food !== scannedParam) {
+    setScannedParam(params.food);
+    setSelected(JSON.parse(params.food) as FoodResult);
+    setGrams('100');
+  }
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<FoodResult[]>([]);
@@ -119,13 +127,25 @@ export default function AddMealScreen() {
         ))}
       </View>
 
-      <Field
-        placeholder="Search foods (e.g. greek yogurt)"
-        value={query}
-        onChangeText={setQuery}
-        autoCorrect={false}
-        returnKeyType="search"
-      />
+      <View style={styles.row}>
+        <Field
+          placeholder="Search foods (e.g. greek yogurt)"
+          value={query}
+          onChangeText={setQuery}
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {Platform.OS !== 'web' && (
+          <Pressable
+            accessibilityLabel="Scan barcode"
+            onPress={() => router.push({ pathname: '/scan', params: { day, mealType } })}
+            style={[styles.scanButton, { backgroundColor: theme.tintSoft }]}>
+            <ThemedText type="smallBold" style={{ color: theme.tint }}>
+              Scan
+            </ThemedText>
+          </Pressable>
+        )}
+      </View>
 
       {searching && <ActivityIndicator color={theme.tint} />}
       {searchActive && searchError && (
@@ -255,6 +275,11 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  scanButton: {
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.two + 4,
   },
   credit: {
     textAlign: 'center',

@@ -33,6 +33,22 @@ const MIGRATIONS: string[] = [
     value TEXT NOT NULL
   );
   `,
+  `
+  CREATE TABLE water_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day TEXT NOT NULL,
+    ml REAL NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX water_logs_day ON water_logs (day);
+
+  CREATE TABLE mood_checkins (
+    day TEXT PRIMARY KEY NOT NULL,
+    mood INTEGER NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL
+  );
+  `,
 ];
 
 export async function migrateDb(db: SQLiteDatabase) {

@@ -5,7 +5,16 @@ import { ThemedText } from '@/components/themed-text';
 import { Button, Card, ProgressBar, Screen, SectionTitle, Stat } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { getMeditation, MEDITATIONS } from '@/data/meditations';
-import { getDaySummaries, getGoals, getStreak } from '@/db/queries';
+import { MoodCard, WaterCard } from '@/components/wellness-cards';
+import {
+  getDaySummaries,
+  getGoals,
+  getMoodCheckin,
+  getStreak,
+  logWater,
+  saveMoodCheckin,
+  undoLastWater,
+} from '@/db/queries';
 import { useFocusedQuery } from '@/hooks/use-focused-query';
 import { useTheme } from '@/hooks/use-theme';
 import { greeting, toDayKey } from '@/lib/dates';
@@ -13,13 +22,18 @@ import { greeting, toDayKey } from '@/lib/dates';
 export default function TodayScreen() {
   const theme = useTheme();
   const today = toDayKey();
-  const { data } = useFocusedQuery(async (db) => {
+  const { data, db, reload } = useFocusedQuery(async (db) => {
     const [summary] = await getDaySummaries(db, today, today);
-    return { summary, goals: await getGoals(db), streak: await getStreak(db) };
+    return {
+      summary,
+      goals: await getGoals(db),
+      streak: await getStreak(db),
+      checkin: await getMoodCheckin(db, today),
+    };
   }, today);
 
   if (!data) return <Screen title="Today" />;
-  const { summary, goals, streak } = data;
+  const { summary, goals, streak, checkin } = data;
   const remaining = Math.round(goals.calories - summary.calories);
   const suggestion = suggestMeditation();
 
@@ -28,11 +42,18 @@ export default function TodayScreen() {
       title="Today"
       subtitle={greeting()}
       right={
-        <Pressable onPress={() => router.push('/goals')} hitSlop={12}>
-          <ThemedText type="linkPrimary" style={{ color: theme.tint }}>
-            Goals
-          </ThemedText>
-        </Pressable>
+        <View style={styles.links}>
+          <Pressable onPress={() => router.push('/reminders')} hitSlop={12}>
+            <ThemedText type="linkPrimary" style={{ color: theme.tint }}>
+              Reminders
+            </ThemedText>
+          </Pressable>
+          <Pressable onPress={() => router.push('/goals')} hitSlop={12}>
+            <ThemedText type="linkPrimary" style={{ color: theme.tint }}>
+              Goals
+            </ThemedText>
+          </Pressable>
+        </View>
       }>
       <Card>
         <View style={styles.row}>
@@ -44,8 +65,19 @@ export default function TodayScreen() {
           />
           <Stat label="Streak" value={String(streak)} unit={streak === 1 ? 'day' : 'days'} />
         </View>
-        <ProgressBar value={summary.calories} max={goals.calories} height={12} />
+        <ProgressBar value={summary.calories} max={goals.calories} height={12} warnOver />
       </Card>
+
+      <SectionTitle>Check-in</SectionTitle>
+      <MoodCard
+        key={checkin ? 'checked-in' : 'new'}
+        checkin={checkin}
+        day={today}
+        onSave={async (c) => {
+          await saveMoodCheckin(db, c);
+          reload();
+        }}
+      />
 
       <SectionTitle>Macros</SectionTitle>
       <Card>
@@ -77,6 +109,20 @@ export default function TodayScreen() {
         />
       </Card>
 
+      <SectionTitle>Hydration</SectionTitle>
+      <WaterCard
+        ml={summary.waterMl}
+        goal={goals.waterMl}
+        onAdd={async (ml) => {
+          await logWater(db, ml, today);
+          reload();
+        }}
+        onUndo={async () => {
+          await undoLastWater(db, today);
+          reload();
+        }}
+      />
+
       <SectionTitle>Quick log</SectionTitle>
       <Button label="Log a meal" onPress={() => router.push('/add-meal')} />
     </Screen>
@@ -92,7 +138,7 @@ function MacroRow({ label, value, goal }: { label: string; value: number; goal: 
           {Math.round(value)} / {goal} g
         </ThemedText>
       </View>
-      <ProgressBar value={value} max={goal} />
+      <ProgressBar value={value} max={goal} warnOver />
     </View>
   );
 }
@@ -114,6 +160,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  links: {
+    flexDirection: 'row',
+    gap: Spacing.three,
   },
   macro: {
     gap: Spacing.one,

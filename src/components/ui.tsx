@@ -86,11 +86,14 @@ export function ProgressBar({
   max,
   color = 'tint',
   height = 8,
+  warnOver = false,
 }: {
   value: number;
   max: number;
   color?: ThemeColor;
   height?: number;
+  /** Turn red past the goal — for limits like calories, not targets like water. */
+  warnOver?: boolean;
 }) {
   const theme = useTheme();
   const ratio = max > 0 ? Math.min(value / max, 1) : 0;
@@ -105,7 +108,7 @@ export function ProgressBar({
           width: `${ratio * 100}%`,
           height: '100%',
           borderRadius: height / 2,
-          backgroundColor: value > max ? theme.danger : theme[color],
+          backgroundColor: warnOver && value > max ? theme.danger : theme[color],
         }}
       />
     </View>

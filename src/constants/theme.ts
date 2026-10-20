@@ -18,6 +18,8 @@ export const Colors = {
     tintSoft: '#DDF3E9',
     calm: '#6C63D9',
     calmSoft: '#E7E5FB',
+    water: '#2E86DE',
+    waterSoft: '#DCEBFA',
     danger: '#D64545',
   },
   dark: {
@@ -30,6 +32,8 @@ export const Colors = {
     tintSoft: '#173D2C',
     calm: '#9D97F0',
     calmSoft: '#2A2750',
+    water: '#5AA9F0',
+    waterSoft: '#15304A',
     danger: '#F07272',
   },
 } as const;

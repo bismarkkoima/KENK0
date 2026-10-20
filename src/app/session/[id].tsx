@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import * as Speech from 'expo-speech';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -18,7 +19,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { getMeditation, type Meditation } from '@/data/meditations';
-import { logMeditation } from '@/db/queries';
+import { getSetting, logMeditation, saveSetting } from '@/db/queries';
 import { useTheme } from '@/hooks/use-theme';
 
 const MIN_SCALE = 0.55;
@@ -47,6 +48,19 @@ function Session({ meditation }: { meditation: Meditation }) {
   const [running, setRunning] = useState(true);
   const [done, setDone] = useState(false);
   const logged = useRef(false);
+  const [voice, setVoice] = useState(true);
+
+  // Restore the voice guidance preference.
+  useEffect(() => {
+    getSetting<boolean>(db, 'voiceGuide').then((v) => {
+      if (v !== null) setVoice(v);
+    });
+  }, [db]);
+
+  function toggleVoice() {
+    setVoice(!voice);
+    saveSetting(db, 'voiceGuide', !voice);
+  }
 
   const finished = elapsed >= total;
 
@@ -101,12 +115,35 @@ function Session({ meditation }: { meditation: Meditation }) {
 
   const step = [...meditation.steps].reverse().find((s) => elapsed >= s.at);
   const remaining = total - elapsed;
+  const guideText = done
+    ? `Well done — ${meditation.minutes} mindful minutes added to today.`
+    : step?.text;
+
+  // Read each guide step aloud as it appears.
+  useEffect(() => {
+    if (!voice || !guideText || (!running && !done)) return;
+    Speech.speak(guideText, { rate: 0.9, pitch: 1 });
+    return () => {
+      Speech.stop();
+    };
+  }, [voice, running, done, guideText]);
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.top}>
-          <ThemedText type="smallBold">{meditation.title}</ThemedText>
+          <ThemedText type="smallBold" style={styles.title}>
+            {meditation.title}
+          </ThemedText>
+          <Pressable
+            onPress={toggleVoice}
+            hitSlop={12}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: voice }}>
+            <ThemedText style={{ color: theme.calm }}>
+              {voice ? 'Voice on' : 'Voice off'}
+            </ThemedText>
+          </Pressable>
           <Pressable onPress={endEarly} hitSlop={12}>
             <ThemedText style={{ color: theme.calm }}>{done ? 'Close' : 'End'}</ThemedText>
           </Pressable>
@@ -126,9 +163,7 @@ function Session({ meditation }: { meditation: Meditation }) {
 
           <ThemedText style={styles.timer}>{formatClock(remaining)}</ThemedText>
           <ThemedText style={styles.guide} themeColor="textSecondary">
-            {done
-              ? `Well done — ${meditation.minutes} mindful minutes added to today.`
-              : step?.text}
+            {guideText}
           </ThemedText>
         </View>
 
@@ -175,8 +210,11 @@ const styles = StyleSheet.create({
   },
   top: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: Spacing.three,
+  },
+  title: {
+    flex: 1,
   },
   center: {
     flex: 1,

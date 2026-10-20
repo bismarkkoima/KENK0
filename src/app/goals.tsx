@@ -14,6 +14,7 @@ const FIELDS: { key: keyof Goals; label: string }[] = [
   { key: 'carbs', label: 'Carbs (g)' },
   { key: 'fat', label: 'Fat (g)' },
   { key: 'meditationMinutes', label: 'Meditation (min / day)' },
+  { key: 'waterMl', label: 'Water (ml / day)' },
 ];
 
 export default function GoalsScreen() {
