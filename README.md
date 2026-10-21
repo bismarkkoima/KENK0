@@ -18,18 +18,99 @@ It brings three habits into one place:
 All data is stored **on the device** in SQLite. Nothing leaves the phone except food search
 queries and scanned barcodes sent to Open Food Facts. Camera images are never stored.
 
-## Getting started
+## Install on your phone
+
+Kenko isn't in the App Store or Google Play yet. There are two ways to get it on a phone today.
+
+### Option 1 — Try it instantly with Expo Go (no build needed)
+
+Best for testing while you develop. Your phone loads the app from your computer, so both must
+be on the same Wi-Fi network (or use `npx expo start --tunnel` if they can't be).
+
+1. Install **Expo Go** on your phone:
+   [App Store (iPhone)](https://apps.apple.com/app/expo-go/id982107779) ·
+   [Google Play (Android)](https://play.google.com/store/apps/details?id=host.exp.exponent)
+2. On your computer (needs [Node.js](https://nodejs.org) 22.13 or newer):
+
+   ```bash
+   git clone https://github.com/bismarkkoima/KENK0.git
+   cd KENK0
+   npm install
+   npx expo start
+   ```
+
+3. Scan the QR code shown in the terminal:
+   - **iPhone:** open the Camera app, point it at the QR code and tap the banner.
+   - **Android:** open Expo Go and tap **Scan QR code**.
+
+> The store version of Expo Go only runs projects made for the **latest Expo SDK**. Kenko uses
+> SDK 58. If Expo Go says the project is incompatible, update Expo Go, or run
+> `npx expo install expo@latest --fix` to upgrade the project.
+
+### Option 2 — Install a standalone app (works without a computer)
+
+This builds a real app with [EAS Build](https://docs.expo.dev/build/introduction/), Expo's cloud
+build service (free tier available). You need a free [Expo account](https://expo.dev/signup).
+
+```bash
+npm install -g eas-cli
+eas login
+eas build --profile preview --platform android   # or: --platform ios
+```
+
+The first build asks you to pick an app identifier (for example `com.yourname.kenko`) — keep
+it, because it can't be changed once the app is published.
+
+**Android:** when the build finishes, EAS prints a link and QR code. Open it on the phone,
+download the `.apk` and tap it to install. Android will ask you to allow installing apps from
+your browser ("Install unknown apps") — allow it once.
+
+**iPhone:** Apple only allows apps from the App Store or registered test devices, so you need
+an [Apple Developer account](https://developer.apple.com/programs/) (US$99/year). Then either:
+
+- register your iPhone with `eas device:create`, rebuild with
+  `eas build --profile preview --platform ios`, and open the install link on the iPhone; or
+- build with `eas build --profile production --platform ios`, upload it with `eas submit`,
+  and install it through **TestFlight** (best for sharing with up to 10,000 testers).
+
+### Publishing to the stores
+
+`eas build --profile production` then `eas submit` uploads the app to Google Play (one-time
+US$25 developer fee) and the App Store. Both stores review apps before release, and health
+apps need a privacy policy. See [Submit to app stores](https://docs.expo.dev/submit/introduction/).
+
+## Compatibility
+
+| Platform | Minimum version | Notes |
+| --- | --- | --- |
+| **iPhone** | iOS 16.4 or newer | iPhone 8 / SE (2nd gen) and later. Runs on iPad in iPhone mode. |
+| **Android** | Android 7.0 (API 24) or newer | Phones from roughly 2016 onward. |
+| **Web browser** | Recent Chrome, Edge, Safari or Firefox | For previewing only — see feature table. |
+
+The app works in portrait mode and follows the phone's light / dark setting.
+
+| Feature | iPhone & Android | Web | Needs |
+| --- | --- | --- | --- |
+| Meal log, goals, progress charts | ✅ | ✅ | — |
+| Food search | ✅ | ✅ | Internet connection |
+| Barcode scanning | ✅ | ❌ | Camera permission + internet |
+| Meditation sessions | ✅ | ✅ | — |
+| Spoken guidance | ✅ | ⚠️ depends on browser | A text-to-speech voice (built into iOS and most Android phones; on Android it may need Google Speech Services) |
+| Water & mood tracking | ✅ | ✅ | — |
+| Reminders | ✅ | ❌ | Notification permission |
+
+Everything except food search and barcode lookups works **offline**. Your data stays on the
+phone — deleting the app deletes it, and it doesn't sync between devices yet.
+
+## Development
 
 ```bash
 npm install
 npx expo start
 ```
 
-Barcode scanning, reminders and voice guidance need a phone (Expo Go or a development
-build); on web they're hidden or show a note.
-
-Then press `i` (iOS simulator), `a` (Android emulator), `w` (web), or scan the QR code with
-Expo Go on your phone.
+Press `i` (iOS simulator, macOS only), `a` (Android emulator), `w` (web), or scan the QR code
+with Expo Go.
 
 Checks to run before committing:
 
