@@ -1,31 +1,64 @@
 import { router } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Icon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
 import { TipCard } from '@/components/tip-card';
-import { Card, CardTitle, Chip, IconButton, IconTile, PlayButton, Screen } from '@/components/ui';
-import { Spacing } from '@/constants/theme';
 import {
-  WORKOUT_GROUPS,
-  WORKOUT_TYPES,
+  Card,
+  CardTitle,
+  Chip,
+  Field,
+  IconButton,
+  IconTile,
+  PlayButton,
+  Screen,
+  SectionTitle,
+} from '@/components/ui';
+import { accentText, Spacing } from '@/constants/theme';
+import {
+  caloriesPerHour,
   formatDuration,
   getWorkoutType,
+  WORKOUT_GROUPS,
+  WORKOUT_TYPES,
+  type WorkoutGroup,
   type WorkoutType,
 } from '@/data/workouts';
-import { deleteWorkout, getDaySummaries, getRecentWorkouts, type Workout } from '@/db/queries';
+import {
+  deleteWorkout,
+  getDaySummaries,
+  getGoals,
+  getRecentWorkouts,
+  type Workout,
+} from '@/db/queries';
 import { useFocusedQuery } from '@/hooks/use-focused-query';
 import { useTheme } from '@/hooks/use-theme';
 import { addDays, formatDayLabel, toDayKey } from '@/lib/dates';
 
+const DEFAULT_FAVOURITES = ['walk', 'run', 'weight-machines'];
+
+function startWorkout(type: WorkoutType) {
+  router.push({ pathname: '/workout/[type]', params: { type: type.id } });
+}
+
+function logWorkout(type: WorkoutType) {
+  router.push({ pathname: '/log-workout', params: { type: type.id } });
+}
+
 export default function ActivityScreen() {
-  const [group, setGroup] = useState<WorkoutType['group'] | null>(null);
+  const [group, setGroup] = useState<WorkoutGroup | null>(null);
+  const [query, setQuery] = useState('');
   const today = toDayKey();
   const { data, db, reload } = useFocusedQuery(async (db) => {
     const week = await getDaySummaries(db, addDays(today, -6), today);
+    const favourites = await db.getAllAsync<{ type: string }>(
+      'SELECT type FROM workouts GROUP BY type ORDER BY COUNT(*) DESC LIMIT 3',
+    );
     return {
+      weightKg: (await getGoals(db)).weightKg,
+      favourites: favourites.map((f) => f.type),
       recent: await getRecentWorkouts(db, 8),
       week: {
         count: week.reduce((s, d) => s + d.workouts, 0),
@@ -35,7 +68,14 @@ export default function ActivityScreen() {
     };
   }, today);
 
-  const types = group ? WORKOUT_TYPES.filter((t) => t.group === group) : WORKOUT_TYPES;
+  const weightKg = data?.weightKg ?? 70;
+  const favouriteIds = [...(data?.favourites ?? []), ...DEFAULT_FAVOURITES]
+    .filter((id, i, all) => all.indexOf(id) === i)
+    .slice(0, 3);
+  const q = query.trim().toLowerCase();
+  const list = WORKOUT_TYPES.filter(
+    (t) => (!group || t.group === group) && (!q || t.name.toLowerCase().includes(q)),
+  );
 
   function confirmDelete(w: Workout) {
     const remove = async () => {
@@ -58,16 +98,16 @@ export default function ActivityScreen() {
       title="Activity"
       right={
         <IconButton
-          icon={{ ios: 'square.and.pencil', android: 'edit_note', web: 'edit_note' }}
+          icon={{ mci: 'pencil-plus' }}
           label="Log a past workout"
           onPress={() => router.push('/log-workout')}
         />
       }>
       <TipCard
-        id="activity-intro"
-        icon={{ ios: 'heart.fill', android: 'favorite', web: 'favorite' }}
-        title="Start a workout"
-        body="Tap play to time a workout live, or use the pencil to log one you've already done. Calories are estimated from the activity, time, effort and your weight."
+        id="activity-timer"
+        icon={{ mci: 'timer-play' }}
+        title="Time it or type it"
+        body="Tap play to start a timer and Finish when you're done — a live notification keeps your time and calories in view. Or log a session you've already done."
       />
 
       {data && (
@@ -81,6 +121,18 @@ export default function ActivityScreen() {
         </Card>
       )}
 
+      <SectionTitle>Your favourites</SectionTitle>
+      {favouriteIds.map((id) => (
+        <FeaturedCard key={id} type={getWorkoutType(id)} weightKg={weightKg} />
+      ))}
+
+      <SectionTitle>All sports</SectionTitle>
+      <Field
+        placeholder={`Search ${WORKOUT_TYPES.length} activities`}
+        value={query}
+        onChangeText={setQuery}
+        autoCorrect={false}
+      />
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -95,10 +147,19 @@ export default function ActivityScreen() {
           />
         ))}
       </ScrollView>
-
-      {types.map((t) => (
-        <WorkoutCard key={t.id} type={t} />
-      ))}
+      <ThemedText type="small" themeColor="textSecondary">
+        Estimates for {weightKg} kg at moderate effort. Harder sessions burn more.
+      </ThemedText>
+      <Card style={styles.list}>
+        {list.length === 0 && (
+          <ThemedText themeColor="textSecondary">
+            No match — try “Other” for anything not listed.
+          </ThemedText>
+        )}
+        {list.map((t, i) => (
+          <SportRow key={t.id} type={t} weightKg={weightKg} divider={i > 0} />
+        ))}
+      </Card>
 
       {data && data.recent.length > 0 && (
         <Card>
@@ -130,35 +191,75 @@ export default function ActivityScreen() {
   );
 }
 
-function WorkoutCard({ type }: { type: WorkoutType }) {
+function FeaturedCard({ type, weightKg }: { type: WorkoutType; weightKg: number }) {
   const theme = useTheme();
-  const accent = theme[type.color === 'tint' ? 'tintText' : type.color];
+  const accent = theme[accentText(type.color)];
   return (
-    <Card accent={type.color} style={styles.workoutCard}>
-      <View style={styles.workoutTop}>
+    <Card accent={type.color} style={styles.featured}>
+      <View style={styles.featuredTop}>
         <Icon name={type.icon} size={52} color={accent} />
         <PlayButton
           label={`Start ${type.name}`}
           color={type.color}
-          onPress={() => router.push({ pathname: '/workout/[type]', params: { type: type.id } })}
+          onPress={() => startWorkout(type)}
         />
       </View>
-      <ThemedText style={styles.workoutName}>{type.name}</ThemedText>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push({ pathname: '/log-workout', params: { type: type.id } })}
-        style={({ pressed }) => [
-          styles.logPill,
-          { backgroundColor: theme.backgroundSelected, opacity: pressed ? 0.7 : 1 },
-        ]}>
-        <SymbolView
-          name={{ ios: 'plus', android: 'add', web: 'add' }}
-          size={14}
-          tintColor={theme.text}
-        />
-        <ThemedText type="small">Log past session</ThemedText>
-      </Pressable>
+      <ThemedText style={styles.featuredName}>{type.name}</ThemedText>
+      <View style={styles.featuredBottom}>
+        <ThemedText type="smallBold" style={{ color: accent }}>
+          ≈ {Math.round(caloriesPerHour(type, weightKg) / 2)} kcal / 30 min
+        </ThemedText>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => logWorkout(type)}
+          style={({ pressed }) => [
+            styles.logPill,
+            { backgroundColor: theme.backgroundSelected, opacity: pressed ? 0.7 : 1 },
+          ]}>
+          <Icon name={{ mci: 'pencil-plus' }} size={14} color={theme.text} />
+          <ThemedText type="small">Enter manually</ThemedText>
+        </Pressable>
+      </View>
     </Card>
+  );
+}
+
+function SportRow({
+  type,
+  weightKg,
+  divider,
+}: {
+  type: WorkoutType;
+  weightKg: number;
+  divider: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        styles.sportRow,
+        divider && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: theme.glassBorder },
+      ]}>
+      <IconTile icon={type.icon} color={type.color} size={40} />
+      <View style={styles.flex}>
+        <ThemedText type="smallBold">{type.name}</ThemedText>
+        <ThemedText type="small" style={{ color: theme[accentText(type.color)] }}>
+          ≈ {Math.round(caloriesPerHour(type, weightKg) / 2)} kcal / 30 min
+        </ThemedText>
+      </View>
+      <IconButton
+        icon={{ mci: 'pencil-plus' }}
+        label={`Enter a ${type.name} session`}
+        size={38}
+        onPress={() => logWorkout(type)}
+      />
+      <PlayButton
+        label={`Start ${type.name}`}
+        color={type.color}
+        size={38}
+        onPress={() => startWorkout(type)}
+      />
+    </View>
   );
 }
 
@@ -187,29 +288,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.three,
   },
-  workoutCard: {
+  featured: {
     gap: Spacing.two,
   },
-  workoutTop: {
+  featuredTop: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
-  workoutName: {
+  featuredName: {
     fontSize: 30,
     lineHeight: 36,
     fontWeight: 800,
-    letterSpacing: -0.6,
+    letterSpacing: -0.8,
+  },
+  featuredBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
   logPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.one + 2,
-    alignSelf: 'flex-start',
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     borderRadius: 999,
-    marginTop: Spacing.one,
+  },
+  list: {
+    paddingVertical: Spacing.two,
+    gap: 0,
+  },
+  sportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two + 4,
+    paddingVertical: Spacing.two + 2,
   },
   recentRow: {
     flexDirection: 'row',

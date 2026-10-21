@@ -35,6 +35,7 @@ export type PeriodAnalysis = {
   period: Period;
   from: string;
   to: string;
+  /** Days from the first one with any data (used for averages and insights). */
   days: DaySummary[];
   buckets: Bucket[];
   totals: Totals;
@@ -111,13 +112,26 @@ export async function analyzePeriod(db: SQLiteDatabase, period: Period): Promise
     getWorkoutsBetween(db, from, to),
   ]);
 
+  // Averages and insights start from the first day with any data, so a new user's year view
+  // isn't diluted by months before they started. Charts still show the full period.
+  const firstTracked = days.findIndex(
+    (d) =>
+      d.calories > 0 ||
+      d.workouts > 0 ||
+      d.meditationMinutes > 0 ||
+      d.waterMl > 0 ||
+      d.steps > 0 ||
+      d.mood !== null,
+  );
+  const tracked = firstTracked === -1 ? days.slice(-7) : days.slice(firstTracked);
+
   return {
     period,
     from,
     to,
-    days,
+    days: tracked,
     buckets: bucketize(period, days),
-    totals: totals(days),
+    totals: totals(tracked),
     previous: totals(prevDays),
     workouts,
   };

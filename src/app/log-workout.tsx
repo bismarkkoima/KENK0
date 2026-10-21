@@ -19,6 +19,12 @@ export default function LogWorkoutScreen() {
   const params = useLocalSearchParams<{ type?: string }>();
   const { data: goals, db } = useFocusedQuery(getGoals);
   const [typeId, setTypeId] = useState(params.type ?? 'walk');
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  // The selected activity always stays visible, even when it doesn't match the search.
+  const shown = WORKOUT_TYPES.filter(
+    (t) => !q || t.id === typeId || t.name.toLowerCase().includes(q),
+  );
   const [minutes, setMinutes] = useState('30');
   const [effort, setEffort] = useState(3);
   const [distance, setDistance] = useState('');
@@ -52,8 +58,14 @@ export default function LogWorkoutScreen() {
     <Screen tabs={false}>
       <Card>
         <ThemedText type="smallBold">Activity</ThemedText>
+        <Field
+          placeholder="Search activities"
+          value={query}
+          onChangeText={setQuery}
+          autoCorrect={false}
+        />
         <View style={styles.grid}>
-          {WORKOUT_TYPES.map((t) => {
+          {shown.map((t) => {
             const selected = t.id === typeId;
             return (
               <Pressable

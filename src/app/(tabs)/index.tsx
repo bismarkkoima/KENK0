@@ -1,8 +1,8 @@
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Icon } from '@/components/icon';
+import { Icon, type AppIcon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
 import { TipCard } from '@/components/tip-card';
 import {
@@ -43,6 +43,8 @@ import {
 } from '@/lib/motivation';
 import { getProfile, levelLabel, type Profile } from '@/lib/profile';
 import { getLifetimeStats } from '@/lib/stats';
+import { getCardioLoad, type CardioLoad } from '@/lib/cardio-load';
+import { getVitals } from '@/lib/heart';
 import { linearGradient, radialGlow } from '@/lib/style';
 
 export default function SummaryScreen() {
@@ -57,7 +59,10 @@ export default function SummaryScreen() {
     const stats = await getLifetimeStats(db);
     const badges = evaluateBadges(stats);
     const seen = (await getSetting<string[]>(db, 'badges:seen')) ?? [];
+    const vitals = await getVitals(db, 20);
     return {
+      cardio: await getCardioLoad(db),
+      restingHr: vitals.find((v) => v.resting_hr !== null)?.resting_hr ?? null,
       summary,
       goals,
       profile,
@@ -153,6 +158,12 @@ export default function SummaryScreen() {
           </View>
         </View>
       </Card>
+
+      <HealthGrid
+        steps={steps?.total ?? summary.steps}
+        cardio={data.cardio}
+        restingHr={data.restingHr}
+      />
 
       <PlanCard profile={profile} goals={goals} done={data.weekWorkouts} />
 
@@ -291,6 +302,81 @@ function NewBadgeCard({ badges }: { badges: BadgeProgress[] }) {
   );
 }
 
+/** Shortcuts into the health screens, each with today's headline number. */
+function HealthGrid({
+  steps,
+  cardio,
+  restingHr,
+}: {
+  steps: number;
+  cardio: CardioLoad;
+  restingHr: number | null;
+}) {
+  return (
+    <View style={styles.healthGrid}>
+      <HealthTile
+        href="/health/daily"
+        icon={{ mci: 'calendar-today' }}
+        color="tint"
+        title="Daily activity"
+        value={steps ? `${steps.toLocaleString()} steps` : 'See today'}
+      />
+      <HealthTile
+        href="/health/cardio-load"
+        icon={{ mci: 'chart-bell-curve-cumulative' }}
+        color="sky"
+        title="Cardio load"
+        value={`${cardio.today} · ${cardio.status.short}`}
+      />
+      <HealthTile
+        href="/health/heart"
+        icon={{ mci: 'heart-pulse' }}
+        color="move"
+        title="Heart health"
+        value={restingHr ? `${restingHr} bpm resting` : 'Add a reading'}
+      />
+      <HealthTile
+        href="/health/hearing"
+        icon={{ mci: 'ear-hearing' }}
+        color="calm"
+        title="Hearing"
+        value="Safe listening guide"
+      />
+    </View>
+  );
+}
+
+function HealthTile({
+  href,
+  icon,
+  color,
+  title,
+  value,
+}: {
+  href: Href;
+  icon: AppIcon;
+  color: GradientName;
+  title: string;
+  value: string;
+}) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      onPress={() => router.push(href)}
+      style={({ pressed }) => [styles.healthTile, { transform: [{ scale: pressed ? 0.97 : 1 }] }]}>
+      <Card accent={color} style={styles.healthCard}>
+        <IconTile icon={icon} color={color} size={36} />
+        <ThemedText type="smallBold">{title}</ThemedText>
+        <ThemedText type="small" style={{ color: theme[accentText(color)] }} numberOfLines={1}>
+          {value}
+        </ThemedText>
+      </Card>
+    </Pressable>
+  );
+}
+
 /** This week's workouts against a plan sized to the person's fitness level. */
 function PlanCard({
   profile,
@@ -413,7 +499,8 @@ function RingStat({
 
 function StepsCard({ steps, goal }: { steps: StepData; goal: number }) {
   const theme = useTheme();
-  const max = Math.max(...steps.hourly, 1);
+  const hourly = steps.hourly;
+  const max = Math.max(...(hourly ?? []), 1);
   return (
     <Card>
       <CardTitle
@@ -434,32 +521,44 @@ function StepsCard({ steps, goal }: { steps: StepData; goal: number }) {
           </ThemedText>
         </ThemedText>
       </View>
-      <View style={styles.hourly}>
-        {steps.hourly.map((v, h) => (
-          <View key={h} style={styles.hourSlot}>
-            <View
-              style={[
-                styles.hourGrid,
-                { borderColor: h % 6 === 0 ? theme.textSecondary : theme.backgroundSelected },
-              ]}
-            />
-            {v > 0 && (
-              <GradientFill
-                name="calm"
-                angle={0}
-                style={{ height: `${Math.max((v / max) * 100, 6)}%`, width: 5, borderRadius: 3 }}
-              />
-            )}
+      {hourly ? (
+        <>
+          <View style={styles.hourly}>
+            {hourly.map((v, h) => (
+              <View key={h} style={styles.hourSlot}>
+                <View
+                  style={[
+                    styles.hourGrid,
+                    { borderColor: h % 6 === 0 ? theme.textSecondary : theme.backgroundSelected },
+                  ]}
+                />
+                {v > 0 && (
+                  <GradientFill
+                    name="calm"
+                    angle={0}
+                    style={{
+                      height: `${Math.max((v / max) * 100, 6)}%`,
+                      width: 5,
+                      borderRadius: 3,
+                    }}
+                  />
+                )}
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
-      <View style={styles.hourLabels}>
-        {['00', '06', '12', '18'].map((l) => (
-          <ThemedText key={l} type="small" themeColor="textSecondary" style={styles.hourLabel}>
-            {l}
-          </ThemedText>
-        ))}
-      </View>
+          <View style={styles.hourLabels}>
+            {['00', '06', '12', '18'].map((l) => (
+              <ThemedText key={l} type="small" themeColor="textSecondary" style={styles.hourLabel}>
+                {l}
+              </ThemedText>
+            ))}
+          </View>
+        </>
+      ) : (
+        <ThemedText type="small" themeColor="textSecondary">
+          Counted by your phone&apos;s step sensor while Kenko is open.
+        </ThemedText>
+      )}
     </Card>
   );
 }
@@ -749,6 +848,19 @@ const styles = StyleSheet.create({
   },
   mindfulSub: {
     color: 'rgba(255,255,255,0.88)',
+  },
+  healthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.three,
+  },
+  healthTile: {
+    width: '46%',
+    flexGrow: 1,
+  },
+  healthCard: {
+    gap: Spacing.one,
+    padding: Spacing.three,
   },
   playWhite: {
     width: 56,

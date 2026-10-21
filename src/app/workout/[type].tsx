@@ -1,8 +1,8 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AppState, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/icon';
@@ -19,6 +19,12 @@ import {
 import { addWorkout, getGoals } from '@/db/queries';
 import { useTheme } from '@/hooks/use-theme';
 import { toDayKey } from '@/lib/dates';
+import {
+  cancelMilestones,
+  endLiveWorkout,
+  scheduleMilestones,
+  showLiveWorkout,
+} from '@/lib/live-notification';
 import { goBack } from '@/lib/navigation';
 
 // Browsers' wake lock needs a user gesture and errors otherwise; phones keep the screen on.
@@ -58,6 +64,35 @@ function LiveWorkout({ type }: { type: WorkoutType }) {
   const calories = estimateCalories(type, seconds, weightKg);
   const running = runningSince !== null;
 
+  // Live notification: refreshed every 15 s and whenever the app goes to the background, with
+  // milestone cheers scheduled ahead so they arrive even while the app is suspended.
+  const latest = useRef({ seconds, calories, running });
+  useEffect(() => {
+    latest.current = { seconds, calories, running };
+  });
+  useEffect(() => {
+    if (ended) return;
+    const push = () =>
+      showLiveWorkout(
+        type,
+        latest.current.seconds,
+        latest.current.calories,
+        !latest.current.running,
+      );
+    push();
+    if (running) scheduleMilestones(type, latest.current.seconds);
+    else cancelMilestones();
+    const timer = running ? setInterval(push, 15_000) : undefined;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') push();
+    });
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [type, running, ended]);
+  useEffect(() => () => void endLiveWorkout(), []);
+
   function pause() {
     if (runningSince === null) return;
     setAccumulatedMs((ms) => ms + Date.now() - runningSince);
@@ -69,9 +104,10 @@ function LiveWorkout({ type }: { type: WorkoutType }) {
     setRunningSince(Date.now());
   }
 
-  function end() {
+  function finish() {
     pause();
     setEnded(true);
+    endLiveWorkout();
   }
 
   if (ended) {
@@ -128,10 +164,10 @@ function LiveWorkout({ type }: { type: WorkoutType }) {
             onPress={running ? pause : resume}
           />
           <RoundControl
-            label="End"
-            icon={{ ios: 'xmark', android: 'close', web: 'close' }}
-            color="move"
-            onPress={end}
+            label="Finish"
+            icon={{ mci: 'flag-checkered' }}
+            color="tint"
+            onPress={finish}
           />
         </View>
       </SafeAreaView>
@@ -208,7 +244,16 @@ function Summary({
   const [effort, setEffort] = useState(3);
   const [distance, setDistance] = useState('');
   const [note, setNote] = useState('');
-  const calories = estimateCalories(type, seconds, weightKg, effort);
+  // Forgot to stop the timer? The duration can be corrected before saving.
+  const [initialMinutes] = useState(() => String(Math.max(1, Math.round(seconds / 60))));
+  const [minutes, setMinutes] = useState(initialMinutes);
+  const editedMinutes = Number(minutes);
+  const edited = minutes !== initialMinutes;
+  const durationValid =
+    !edited || (Number.isFinite(editedMinutes) && editedMinutes > 0 && editedMinutes <= 1440);
+  // Keep the exact timed duration unless the person changes the minutes.
+  const finalSeconds = edited && durationValid ? Math.round(editedMinutes * 60) : seconds;
+  const calories = estimateCalories(type, finalSeconds, weightKg, effort);
   const km = Number(distance.replace(',', '.'));
 
   async function save() {
@@ -216,7 +261,7 @@ function Summary({
       day: toDayKey(startedAt),
       type: type.id,
       started_at: startedAt.toISOString(),
-      duration_sec: seconds,
+      duration_sec: finalSeconds,
       calories,
       distance_km: type.distance && km > 0 ? km : null,
       effort,
@@ -242,12 +287,18 @@ function Summary({
             <ThemedText type="heading">{type.name}</ThemedText>
           </View>
           <View style={styles.metricRow}>
-            <Metric value={formatDuration(seconds)} unit="" label="Duration" color="tint" />
+            <Metric value={formatDuration(finalSeconds)} unit="" label="Duration" color="sky" />
             <Metric value={String(calories)} unit="KCAL" label="Active calories" color="move" />
           </View>
         </Card>
 
         <Card>
+          <Field
+            label="Duration (minutes) — adjust if you forgot to stop the timer"
+            value={minutes}
+            onChangeText={setMinutes}
+            keyboardType="number-pad"
+          />
           <ThemedText type="smallBold">How hard was it?</ThemedText>
           <View style={styles.chips}>
             {EFFORT_LEVELS.map((e) => (
@@ -281,7 +332,7 @@ function Summary({
           label="Save workout"
           icon={{ ios: 'checkmark', android: 'check', web: 'check' }}
           color={type.color}
-          disabled={seconds < 1}
+          disabled={!durationValid || finalSeconds < 1}
           onPress={save}
         />
         <Button label="Resume" variant="secondary" onPress={onResume} />

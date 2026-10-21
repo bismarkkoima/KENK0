@@ -1,13 +1,17 @@
 import { Pedometer } from 'expo-sensors';
 import { useFocusEffect } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useSQLiteContext, type SQLiteDatabase } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { saveDailySteps } from '@/db/queries';
 import { addDays, fromDayKey, toDayKey } from '@/lib/dates';
 
-export type StepData = { total: number; hourly: number[] };
+export type StepData = {
+  total: number;
+  /** Steps per hour of today (iOS), or null when only a running total is known (Android). */
+  hourly: number[] | null;
+};
 
 /**
  * Today's steps, total and per hour, from the phone's motion coprocessor. Only iOS can query past
@@ -23,6 +27,7 @@ export function useTodaySteps(): StepData | null {
 
   useFocusEffect(
     useCallback(() => {
+      if (Platform.OS === 'android') return watchAndroidSteps(db, setData);
       if (Platform.OS !== 'ios') return;
       let cancelled = false;
 
@@ -67,4 +72,37 @@ export function useTodaySteps(): StepData | null {
   );
 
   return data;
+}
+
+/**
+ * Android can't look up past step counts without Health Connect, so Kenko counts live from the
+ * step sensor while the app is open and adds that to what it has already saved for today.
+ */
+function watchAndroidSteps(db: SQLiteDatabase, setData: (d: StepData) => void) {
+  let subscription: { remove: () => void } | null = null;
+  let cancelled = false;
+
+  (async () => {
+    if (!(await Pedometer.isAvailableAsync())) return;
+    if (!(await Pedometer.requestPermissionsAsync()).granted) return;
+    const today = toDayKey();
+    const saved = await db.getFirstAsync<{ steps: number }>(
+      'SELECT steps FROM daily_steps WHERE day = ?',
+      today,
+    );
+    const base = saved?.steps ?? 0;
+    if (cancelled) return;
+    setData({ total: base, hourly: null });
+    subscription = Pedometer.watchStepCount(({ steps }) => {
+      setData({ total: base + steps, hourly: null });
+      saveDailySteps(db, today, base + steps);
+    });
+  })().catch(() => {
+    // No step sensor — leave the card hidden.
+  });
+
+  return () => {
+    cancelled = true;
+    subscription?.remove();
+  };
 }

@@ -32,6 +32,13 @@ const ROWS: { href: Href; icon: AppIcon; color: GradientName; title: string; det
     detail: 'Your level, points and achievements',
   },
   {
+    href: '/permissions',
+    icon: { mci: 'shield-check' },
+    color: 'calm',
+    title: 'Permissions',
+    detail: 'Motion & steps, notifications, camera',
+  },
+  {
     href: '/reminders',
     icon: { mci: 'bell-ring' },
     color: 'warm',

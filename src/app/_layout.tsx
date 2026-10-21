@@ -28,14 +28,15 @@ import { Platform, useColorScheme } from 'react-native';
 
 import { Colors, FontFiles } from '@/constants/theme';
 import { migrateDb } from '@/db/migrations';
+import { LIVE_ID } from '@/lib/live-notification';
 
 SplashScreen.preventAutoHideAsync();
 
 if (Platform.OS !== 'web') {
-  // Show reminders as banners even while the app is open.
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
+    // The live workout notification updates quietly in the list; reminders show as banners.
+    handleNotification: async (n) => ({
+      shouldShowBanner: n.request.identifier !== LIVE_ID,
       shouldShowList: true,
       shouldPlaySound: false,
       shouldSetBadge: false,
@@ -109,6 +110,11 @@ export default function RootLayout() {
           <Stack.Screen name="settings" options={{ title: 'Settings' }} />
           <Stack.Screen name="badges" options={{ title: 'Badges & rewards' }} />
           <Stack.Screen name="backup" options={{ title: 'Backup & restore' }} />
+          <Stack.Screen name="permissions" options={{ title: 'Permissions' }} />
+          <Stack.Screen name="health/daily" options={{ title: 'Daily activity' }} />
+          <Stack.Screen name="health/cardio-load" options={{ title: 'Cardio load' }} />
+          <Stack.Screen name="health/heart" options={{ title: 'Heart health' }} />
+          <Stack.Screen name="health/hearing" options={{ title: 'Hearing' }} />
           <Stack.Screen
             name="workout/[type]"
             options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }}

@@ -84,6 +84,18 @@ const MIGRATIONS: string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  `
+  CREATE TABLE vitals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day TEXT NOT NULL,
+    measured_at TEXT NOT NULL,
+    resting_hr INTEGER,
+    systolic INTEGER,
+    diastolic INTEGER,
+    note TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX vitals_day ON vitals (day);
+  `,
 ];
 
 export async function migrateDb(db: SQLiteDatabase) {

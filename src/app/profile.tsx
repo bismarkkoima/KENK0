@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -200,7 +200,8 @@ function ProfileForm({
         disabled={!valid}
         onPress={async () => {
           await onSave(complete);
-          goBack();
+          if (welcome) router.replace({ pathname: '/permissions', params: { welcome: '1' } });
+          else goBack();
         }}
       />
       {!valid && (

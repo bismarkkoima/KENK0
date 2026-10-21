@@ -14,6 +14,7 @@ const TABLES = [
   'mood_checkins',
   'mind_entries',
   'daily_steps',
+  'vitals',
 ] as const;
 
 type Row = Record<string, string | number | null>;
