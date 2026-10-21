@@ -11,7 +11,7 @@ import { Platform } from 'react-native';
 export const Colors = {
   light: {
     text: '#06140C',
-    background: '#F2F7F4',
+    background: '#EEF3EF',
     backgroundElement: '#FFFFFF',
     backgroundSelected: '#E2EDE7',
     textSecondary: '#56695E',
@@ -52,9 +52,9 @@ export const Colors = {
   // Dark mode: black and deep greens, with bright greens and light-blue timers on top.
   dark: {
     text: '#F1FFF6',
-    background: '#010503',
-    backgroundElement: '#0A1A11',
-    backgroundSelected: '#13291C',
+    background: '#0E1713',
+    backgroundElement: '#1A211E',
+    backgroundSelected: '#27302C',
     textSecondary: '#8AA595',
     tint: '#1EE07A',
     tintEnd: '#8BFFC0',

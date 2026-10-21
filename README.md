@@ -2,8 +2,9 @@
 
 Kenko (健康, "health") is a mobile health companion built with Expo / React Native.
 It brings movement, food and mental wellbeing into one place — personalized to your body and
-fitness level, with a black-and-deep-green design, glossy 3D accents, light-blue timers and
-Google Fonts typography (DM Sans + Source Serif 4) in light and dark mode.
+fitness level, with a color-coded tile dashboard (each area of health keeps its own color), a
+deep-green-to-black background, glossy 3D accents, light-blue timers and Google Fonts typography
+(DM Sans + Source Serif 4) in light and dark mode.
 
 - **Personal plan** — on first launch Kenko asks about your fitness level, focus, height,
   weight and age, and sizes every goal to you (energy from the Mifflin–St Jeor equation, protein
@@ -13,10 +14,18 @@ Google Fonts typography (DM Sans + Source Serif 4) in light and dark mode.
   research fact; Activity rings (Move, Exercise, Mindful); your week vs. your plan; level,
   points and next badge; step count with an hourly chart (iPhone); mood, nutrition, a suggested
   meditation and water.
-- **Activity & sports** — start a live workout (walk, run, cycle, HIIT, swimming, football,
-  basketball, tennis, strength, yoga, dance…) with a big timer and live calorie estimate, or log
-  one afterwards. Calories are estimated from the activity's MET value, time, effort and your
-  weight.
+- **Home dashboard** — a grid of color-coded tiles (daily boost, daily activity, steps, food,
+  heart, mood, hearing, water, cardio load, workouts, rewards, meditation) with a category bar
+  for Overview, Activity, Heart, Mind and Food.
+- **Activity & sports** — 59 activities in 9 groups (cardio, gym, team, racket, combat, water,
+  winter, outdoor, mind & body), each with a calorie estimate for your weight. Start a timer and
+  tap Finish when you're done — a live notification shows your time and calories meanwhile —
+  or enter a session manually.
+- **Health** — daily activity detail, daily cardio load (session-RPE, compared with your own
+  4-week average), heart health (30-second pulse timer, resting heart rate and blood pressure
+  with AHA categories) and a hearing guide with safe-exposure times.
+- **Transfer** — move your history between iPhone and Android, or import from Apple Health
+  (workouts, steps, heart readings, mindful minutes), Samsung Health and Google Fit (steps).
 - **Meal tracking** — log meals by breakfast / lunch / dinner / snack, scan a product barcode
   or search foods from [Open Food Facts](https://world.openfoodfacts.org) with portion
   scaling, or enter calories and macros manually.
@@ -117,13 +126,16 @@ The app works in portrait mode and follows the phone's light / dark setting.
 | Meditation sessions | ✅ | ✅ | — |
 | Spoken guidance | ✅ | ⚠️ depends on browser | A text-to-speech voice (built into iOS and most Android phones; on Android it may need Google Speech Services) |
 | Workouts (live timer & manual log) | ✅ | ✅ | — |
-| Step count | iPhone only | ❌ | Motion & Fitness permission (Android needs Health Connect — on the roadmap) |
+| Step count | iPhone: full history · Android: counted while Kenko is open | ❌ | Motion & Fitness / Physical activity permission |
 | Mind check-ins & journal | ✅ | ✅ | — |
 | Water & mood tracking | ✅ | ✅ | — |
 | Reminders | ✅ | ❌ | Notification permission |
 | Badges, rewards & trends | ✅ | ✅ | — |
 | Google / iCloud automatic backup | ✅ | ❌ | Backup turned on in the phone's settings |
 | Backup file export & restore | ✅ | ✅ | — |
+| Transfer & imports (Apple Health, Samsung Health, Google Fit) | ✅ | ✅ | The export file from the other app |
+| Live workout notification | ✅ (ongoing on Android, quiet updates on iPhone) | ❌ | Notification permission |
+| Heart health, cardio load, hearing guide | ✅ | ✅ | — |
 
 Everything except food search and barcode lookups works **offline**. Your data stays on the
 phone — deleting the app deletes it, and it doesn't sync between devices yet.
@@ -181,7 +193,8 @@ append a new migration to `src/db/migrations.ts` (never edit a shipped one).
 ## Roadmap
 
 - Recorded audio narration and ambient sounds for meditations (`expo-audio`)
-- Apple Health / Health Connect sync (steps on Android, heart rate, sleep, weight)
+- Live sync with Apple Health / Health Connect, and iPhone Lock Screen Live Activities
+  (both need a native development build)
 - GPS routes and pace for outdoor workouts
 - Optional accounts and cloud sync (e.g. Supabase)
 

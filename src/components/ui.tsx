@@ -67,38 +67,64 @@ export function Screen({
   tabs = true,
 }: PropsWithChildren<{ title?: string; subtitle?: string; right?: ReactNode; tabs?: boolean }>) {
   const insets = useSafeAreaInsets();
-  const theme = useTheme();
 
   return (
-    <ScrollView
-      style={{ backgroundColor: theme.background }}
-      contentContainerStyle={[
-        styles.screenContent,
-        {
-          // Tab screens draw under the status bar (and, on web, under the top tab bar);
-          // stack screens already sit below a header.
-          paddingTop: (tabs ? insets.top + WebTabBarHeight : 0) + Spacing.three,
-          paddingBottom: insets.bottom + (tabs ? BottomTabInset : 0) + Spacing.six,
-        },
-      ]}
-      keyboardShouldPersistTaps="handled">
-      <View style={styles.column}>
-        {title && (
-          <View style={styles.header}>
-            <View style={styles.headerText}>
-              {subtitle && (
-                <ThemedText type="smallBold" themeColor="textSecondary">
-                  {subtitle}
-                </ThemedText>
-              )}
-              <ThemedText type="subtitle">{title}</ThemedText>
+    <View style={styles.fill}>
+      <Backdrop />
+      <ScrollView
+        style={styles.fill}
+        contentContainerStyle={[
+          styles.screenContent,
+          {
+            // Tab screens draw under the status bar (and, on web, under the top tab bar);
+            // stack screens already sit below a header.
+            paddingTop: (tabs ? insets.top + WebTabBarHeight : 0) + Spacing.three,
+            paddingBottom: insets.bottom + (tabs ? BottomTabInset : 0) + Spacing.six,
+          },
+        ]}
+        keyboardShouldPersistTaps="handled">
+        <View style={styles.column}>
+          {title && (
+            <View style={styles.header}>
+              <View style={styles.headerText}>
+                {subtitle && (
+                  <ThemedText type="smallBold" themeColor="textSecondary">
+                    {subtitle}
+                  </ThemedText>
+                )}
+                <ThemedText type="subtitle">{title}</ThemedText>
+              </View>
+              {right && <View style={styles.headerRight}>{right}</View>}
             </View>
-            {right && <View style={styles.headerRight}>{right}</View>}
-          </View>
-        )}
-        {children}
-      </View>
-    </ScrollView>
+          )}
+          {children}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * The app background: deep green fading to near-black, lit by a warm glow at the top (a soft
+ * mint wash in light mode).
+ */
+export function Backdrop() {
+  const theme = useTheme();
+  const dark = useColorScheme() === 'dark';
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        StyleSheet.absoluteFill,
+        { backgroundColor: theme.background },
+        dark
+          ? linearGradient('#25332B', '#0A110E', 180)
+          : linearGradient('#F6F8F1', '#E6EFEA', 180),
+      ]}>
+      <View
+        style={[styles.glow, radialGlow(dark ? 'rgba(214,160,40,0.38)' : 'rgba(255,196,90,0.32)')]}
+      />
+    </View>
   );
 }
 
@@ -592,6 +618,17 @@ export function Stat({ label, value, unit }: { label: string; value: string; uni
 }
 
 const styles = StyleSheet.create({
+  fill: {
+    flex: 1,
+  },
+  glow: {
+    position: 'absolute',
+    top: -260,
+    alignSelf: 'center',
+    width: 620,
+    height: 460,
+    borderRadius: 310,
+  },
   center: {
     alignItems: 'center',
     justifyContent: 'center',

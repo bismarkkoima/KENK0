@@ -1,24 +1,22 @@
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type AppIcon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
-import { TipCard } from '@/components/tip-card';
 import {
-  Card,
-  CardTitle,
-  GradientFill,
-  IconButton,
-  IconTile,
-  PlayButton,
-  ProgressBar,
-  Ring,
-  Rings,
-  Screen,
-} from '@/components/ui';
-import { MoodCard, WaterCard } from '@/components/wellness-cards';
-import { accentText, OnGradient, Spacing, type GradientName } from '@/constants/theme';
+  NightArt,
+  OrbArt,
+  RingsArt,
+  Tile,
+  TileButton,
+  TileColors,
+  TileGrid,
+} from '@/components/tiles';
+import { Backdrop, ProgressBar, Rings } from '@/components/ui';
+import { MOODS, moodEmoji } from '@/components/wellness-cards';
+import { BottomTabInset, MaxContentWidth, Spacing, WebTabBarHeight } from '@/constants/theme';
 import { getMeditation, MEDITATIONS } from '@/data/meditations';
 import {
   getDaySummaries,
@@ -27,52 +25,85 @@ import {
   getSetting,
   logWater,
   saveMoodCheckin,
-  undoLastWater,
-  type Goals,
 } from '@/db/queries';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFocusedQuery } from '@/hooks/use-focused-query';
-import { useTodaySteps, type StepData } from '@/hooks/use-steps';
+import { useTodaySteps } from '@/hooks/use-steps';
 import { useTheme } from '@/hooks/use-theme';
-import { evaluateBadges, levelFor, rewardPoints, type BadgeProgress } from '@/lib/badges';
-import { addDays, greeting, toDayKey } from '@/lib/dates';
-import {
-  hopeStatOfTheDay,
-  personalHopeStats,
-  quoteOfTheDay,
-  type HopeStat,
-} from '@/lib/motivation';
-import { getProfile, levelLabel, type Profile } from '@/lib/profile';
+import { evaluateBadges, levelFor, rewardPoints } from '@/lib/badges';
+import { getCardioLoad } from '@/lib/cardio-load';
+import { addDays, fromDayKey, greeting, toDayKey } from '@/lib/dates';
+import { bloodPressureCategory, getVitals } from '@/lib/heart';
+import { hopeStatOfTheDay, personalHopeStats, quoteOfTheDay } from '@/lib/motivation';
+import { getProfile, levelLabel } from '@/lib/profile';
 import { getLifetimeStats } from '@/lib/stats';
-import { getCardioLoad, type CardioLoad } from '@/lib/cardio-load';
-import { getVitals } from '@/lib/heart';
-import { linearGradient, radialGlow } from '@/lib/style';
 
-export default function SummaryScreen() {
-  const theme = useTheme();
+type Category = 'overview' | 'activity' | 'heart' | 'mind' | 'food';
+
+const CATEGORIES: { id: Category; label: string; icon: AppIcon }[] = [
+  { id: 'overview', label: 'Overview', icon: { mci: 'view-grid' } },
+  { id: 'activity', label: 'Activity', icon: { mci: 'run-fast' } },
+  { id: 'heart', label: 'Heart', icon: { mci: 'heart-pulse' } },
+  { id: 'mind', label: 'Mind', icon: { mci: 'meditation' } },
+  { id: 'food', label: 'Food', icon: { mci: 'food-apple' } },
+];
+
+function categoryIntro(category: Category): { title: string; text: string } | null {
+  const hour = new Date().getHours();
+  switch (category) {
+    case 'activity':
+      return {
+        title: 'Activity',
+        text:
+          hour < 12
+            ? 'Another healthy day has begun. Wake up your body with some light stretching.'
+            : hour < 18
+              ? 'Keep the momentum going — even a short walk counts.'
+              : 'Wind down with an easy stretch or a calm walk.',
+      };
+    case 'heart':
+      return { title: 'Heart', text: 'Your heart works hard for you. Check in on it today.' };
+    case 'mind':
+      return {
+        title: 'Mind',
+        text: 'How is your head today? A few mindful minutes can reset the whole day.',
+      };
+    case 'food':
+      return {
+        title: 'Food',
+        text: 'Fuel well. Every meal you log helps you understand your body.',
+      };
+    default:
+      return null;
+  }
+}
+
+export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const today = toDayKey();
   const steps = useTodaySteps();
+  const [category, setCategory] = useState<Category>('overview');
+  const [hopeOffset, setHopeOffset] = useState(0);
   const { data, db, reload } = useFocusedQuery(async (db) => {
-    const [summary] = await getDaySummaries(db, today, today);
     const week = await getDaySummaries(db, addDays(today, -6), today);
     const goals = await getGoals(db);
     const profile = await getProfile(db);
     const stats = await getLifetimeStats(db);
     const badges = evaluateBadges(stats);
     const seen = (await getSetting<string[]>(db, 'badges:seen')) ?? [];
-    const vitals = await getVitals(db, 20);
+    const vitals = await getVitals(db, 30);
     return {
-      cardio: await getCardioLoad(db),
-      restingHr: vitals.find((v) => v.resting_hr !== null)?.resting_hr ?? null,
-      summary,
+      week,
+      summary: week[week.length - 1],
       goals,
       profile,
-      stats,
-      weekWorkouts: week.reduce((s, d) => s + d.workouts, 0),
       checkin: await getMoodCheckin(db, today),
       hope: personalHopeStats(stats, goals, profile),
       points: rewardPoints(stats, badges),
-      newBadges: badges.filter((b) => b.earned && !seen.includes(b.id)),
-      nextBadge: badges.filter((b) => !b.earned).sort((a, b) => b.progress - a.progress)[0],
+      newBadges: badges.filter((b) => b.earned && !seen.includes(b.id)).length,
+      cardio: await getCardioLoad(db),
+      restingHr: vitals.find((v) => v.resting_hr !== null)?.resting_hr ?? null,
+      bp: vitals.find((v) => v.systolic !== null && v.diastolic !== null) ?? null,
     };
   }, today);
 
@@ -83,799 +114,733 @@ export default function SummaryScreen() {
     }
   }, [data]);
 
-  if (!data) return <Screen title="Summary" />;
-  const { summary, goals, profile, stats, checkin } = data;
-  const caloriesLeft = Math.round(goals.calories - summary.calories);
+  const intro = categoryIntro(category);
 
   return (
-    <Screen
-      title={profile?.name ? `Hi, ${profile.name}` : 'Summary'}
-      subtitle={greeting()}
-      right={
-        <>
-          <IconButton
-            icon={{ mci: 'trophy-award' }}
-            label="Badges and rewards"
-            color="gold"
-            onPress={() => router.push('/badges')}
-          />
-          <IconButton
-            icon={{ mci: 'cog-outline' }}
-            label="Settings"
-            onPress={() => router.push('/settings')}
-          />
-        </>
-      }>
-      <MotivationCard hope={data.hope} />
-
-      {data.newBadges.length > 0 && <NewBadgeCard badges={data.newBadges} />}
-
-      <Card>
-        <CardTitle
-          right={
-            stats.currentStreak > 0 && (
-              <View style={[styles.pill, { backgroundColor: theme.backgroundSelected }]}>
-                <Icon name={{ mci: 'fire' }} size={16} color={theme.warm} />
-                <ThemedText type="smallBold">{stats.currentStreak}</ThemedText>
-              </View>
-            )
-          }>
-          Activity Rings
-        </CardTitle>
-        <View style={styles.ringsRow}>
-          <Rings
-            size={150}
-            stroke={18}
-            gap={3}
-            rings={[
-              { progress: summary.activeCalories / goals.moveCalories, color: 'move' },
-              { progress: summary.exerciseMinutes / goals.exerciseMinutes, color: 'tint' },
-              { progress: summary.meditationMinutes / goals.meditationMinutes, color: 'sky' },
-            ]}
-          />
-          <View style={styles.ringLegend}>
-            <RingStat
-              label="Move"
-              value={Math.round(summary.activeCalories)}
-              goal={goals.moveCalories}
-              unit="CAL"
-              color="move"
-            />
-            <RingStat
-              label="Exercise"
-              value={Math.round(summary.exerciseMinutes)}
-              goal={goals.exerciseMinutes}
-              unit="MIN"
-              color="tint"
-            />
-            <RingStat
-              label="Mindful"
-              value={Math.round(summary.meditationMinutes)}
-              goal={goals.meditationMinutes}
-              unit="MIN"
-              color="sky"
-            />
-          </View>
-        </View>
-      </Card>
-
-      <HealthGrid
-        steps={steps?.total ?? summary.steps}
-        cardio={data.cardio}
-        restingHr={data.restingHr}
-      />
-
-      <PlanCard profile={profile} goals={goals} done={data.weekWorkouts} />
-
-      <RewardsCard points={data.points} next={data.nextBadge} />
-
-      {steps && <StepsCard steps={steps} goal={goals.steps} />}
-
-      <WorkoutPrompt />
-
-      <MoodCard
-        key={checkin ? 'checked-in' : 'new'}
-        checkin={checkin}
-        day={today}
-        onSave={async (c) => {
-          await saveMoodCheckin(db, c);
-          reload();
-        }}
-      />
-
-      <Pressable onPress={() => router.push('/food')} accessibilityRole="button">
-        <Card>
-          <CardTitle right={<Chevron />}>Nutrition</CardTitle>
-          <View style={styles.nutritionRow}>
-            <View style={styles.flex}>
-              <ThemedText type="smallBold">{caloriesLeft >= 0 ? 'Left today' : 'Over'}</ThemedText>
-              <ThemedText
-                type="display"
-                style={{ color: caloriesLeft >= 0 ? theme.tintText : theme.danger }}>
-                {Math.abs(caloriesLeft)}
-                <ThemedText
-                  type="smallBold"
-                  style={{ color: caloriesLeft >= 0 ? theme.tintText : theme.danger }}>
-                  {' '}
-                  KCAL
-                </ThemedText>
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {Math.round(summary.calories)} eaten of {goals.calories}
-              </ThemedText>
-            </View>
-            <MacroRing label="P" value={summary.protein} goal={goals.protein} color="tint" />
-            <MacroRing label="C" value={summary.carbs} goal={goals.carbs} color="warm" />
-            <MacroRing label="F" value={summary.fat} goal={goals.fat} color="water" />
-          </View>
-        </Card>
-      </Pressable>
-
-      <MindfulCard suggestionId={suggestMeditationId()} />
-
-      <WaterCard
-        ml={summary.waterMl}
-        goal={goals.waterMl}
-        onAdd={async (ml) => {
-          await logWater(db, ml, today);
-          reload();
-        }}
-        onUndo={async () => {
-          await undoLastWater(db, today);
-          reload();
-        }}
-      />
-
-      <TipCard
-        id="summary-rings"
-        icon={{ mci: 'circle-double' }}
-        title="Close your rings"
-        body="Move fills with calories from workouts, Exercise with workout minutes and Mindful with meditation. Your targets are sized to your profile — change them any time in Settings."
-      />
-    </Screen>
-  );
-}
-
-/** Daily quote plus one honest, encouraging stat — tap to see another. */
-function MotivationCard({ hope }: { hope: HopeStat[] }) {
-  const theme = useTheme();
-  const [offset, setOffset] = useState(0);
-  const stat = hopeStatOfTheDay(hope, offset);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityHint="Shows another encouraging stat"
-      onPress={() => setOffset((o) => o + 1)}>
-      <View
-        style={[
-          styles.motivation,
-          linearGradient('#0B3D24', '#03140B', 160),
-          { boxShadow: `0 14px 34px ${theme.shadow}` },
+    <View style={styles.fill}>
+      <Backdrop />
+      <ScrollView
+        style={styles.fill}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: insets.top + WebTabBarHeight + Spacing.two,
+            paddingBottom: insets.bottom + BottomTabInset + Spacing.six,
+          },
         ]}>
-        <View style={[styles.motivationGlow, radialGlow('rgba(30,224,122,0.45)')]} />
-        <View style={[styles.motivationGlow2, radialGlow('rgba(92,200,255,0.30)')]} />
-        <ThemedText type="quote" style={styles.quoteMark}>
-          “
-        </ThemedText>
-        <ThemedText type="quote" style={styles.quote}>
-          {quoteOfTheDay()}
-        </ThemedText>
-        <View style={styles.hope}>
-          <Icon name={{ mci: 'star-four-points' }} size={18} color="#8BFFC0" />
-          <View style={styles.flex}>
-            <ThemedText style={styles.hopeText}>{stat.text}</ThemedText>
-            {stat.source && (
-              <ThemedText type="small" style={styles.hopeSource}>
-                Source: {stat.source}
+        <View style={styles.column}>
+          <Header name={data?.profile?.name ?? ''} />
+          <CategoryBar value={category} onChange={setCategory} />
+
+          {intro ? (
+            <View style={styles.intro}>
+              <ThemedText type="heading" style={styles.introTitle}>
+                {intro.title}
               </ThemedText>
-            )}
-          </View>
-        </View>
-        <ThemedText type="small" style={styles.tapHint}>
-          Tap for another
-        </ThemedText>
-      </View>
-    </Pressable>
-  );
-}
-
-function NewBadgeCard({ badges }: { badges: BadgeProgress[] }) {
-  const first = badges[0];
-  return (
-    <Pressable onPress={() => router.push('/badges')} accessibilityRole="button">
-      <Card accent="gold" style={styles.row}>
-        <GradientFill name={first.color} raised style={styles.badgeMedal}>
-          <Icon name={first.icon} size={26} color={OnGradient[first.color]} />
-        </GradientFill>
-        <View style={styles.flex}>
-          <ThemedText type="smallBold">
-            {badges.length > 1 ? `${badges.length} new badges!` : 'New badge unlocked!'}
-          </ThemedText>
-          <ThemedText type="heading">{first.title}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {first.description} · +{first.points} pts
-          </ThemedText>
-        </View>
-        <Chevron />
-      </Card>
-    </Pressable>
-  );
-}
-
-/** Shortcuts into the health screens, each with today's headline number. */
-function HealthGrid({
-  steps,
-  cardio,
-  restingHr,
-}: {
-  steps: number;
-  cardio: CardioLoad;
-  restingHr: number | null;
-}) {
-  return (
-    <View style={styles.healthGrid}>
-      <HealthTile
-        href="/health/daily"
-        icon={{ mci: 'calendar-today' }}
-        color="tint"
-        title="Daily activity"
-        value={steps ? `${steps.toLocaleString()} steps` : 'See today'}
-      />
-      <HealthTile
-        href="/health/cardio-load"
-        icon={{ mci: 'chart-bell-curve-cumulative' }}
-        color="sky"
-        title="Cardio load"
-        value={`${cardio.today} · ${cardio.status.short}`}
-      />
-      <HealthTile
-        href="/health/heart"
-        icon={{ mci: 'heart-pulse' }}
-        color="move"
-        title="Heart health"
-        value={restingHr ? `${restingHr} bpm resting` : 'Add a reading'}
-      />
-      <HealthTile
-        href="/health/hearing"
-        icon={{ mci: 'ear-hearing' }}
-        color="calm"
-        title="Hearing"
-        value="Safe listening guide"
-      />
-    </View>
-  );
-}
-
-function HealthTile({
-  href,
-  icon,
-  color,
-  title,
-  value,
-}: {
-  href: Href;
-  icon: AppIcon;
-  color: GradientName;
-  title: string;
-  value: string;
-}) {
-  const theme = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      onPress={() => router.push(href)}
-      style={({ pressed }) => [styles.healthTile, { transform: [{ scale: pressed ? 0.97 : 1 }] }]}>
-      <Card accent={color} style={styles.healthCard}>
-        <IconTile icon={icon} color={color} size={36} />
-        <ThemedText type="smallBold">{title}</ThemedText>
-        <ThemedText type="small" style={{ color: theme[accentText(color)] }} numberOfLines={1}>
-          {value}
-        </ThemedText>
-      </Card>
-    </Pressable>
-  );
-}
-
-/** This week's workouts against a plan sized to the person's fitness level. */
-function PlanCard({
-  profile,
-  goals,
-  done,
-}: {
-  profile: Profile | null;
-  goals: Goals;
-  done: number;
-}) {
-  const theme = useTheme();
-  const target = goals.weeklyWorkouts;
-  const message =
-    done >= target
-      ? 'Plan complete. Anything more this week is a bonus — rest counts too.'
-      : profile?.fitnessLevel === 'beginner'
-        ? `${target - done} to go. Short sessions count — ${goals.exerciseMinutes} minutes is plenty.`
-        : `${target - done} to go this week. You’ve got this.`;
-  return (
-    <Card accent="sky">
-      <CardTitle
-        right={
-          profile && (
-            <ThemedText type="small" style={{ color: theme.skyText }}>
-              {levelLabel(profile.fitnessLevel)}
-            </ThemedText>
-          )
-        }>
-        Your week
-      </CardTitle>
-      <View style={styles.planDots}>
-        {Array.from({ length: Math.max(target, done) }, (_, i) =>
-          i < done ? (
-            <GradientFill key={i} name="sky" raised style={styles.planDot}>
-              <Icon name={{ mci: 'check-bold' }} size={16} color={OnGradient.sky} />
-            </GradientFill>
-          ) : (
-            <View key={i} style={[styles.planDot, { backgroundColor: theme.backgroundSelected }]} />
-          ),
-        )}
-      </View>
-      <ThemedText type="smallBold">
-        {done} of {target} workouts
-      </ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        {message}
-      </ThemedText>
-    </Card>
-  );
-}
-
-function RewardsCard({ points, next }: { points: number; next?: BadgeProgress }) {
-  const theme = useTheme();
-  const level = levelFor(points);
-  return (
-    <Pressable onPress={() => router.push('/badges')} accessibilityRole="button">
-      <Card>
-        <CardTitle right={<Chevron />}>Rewards</CardTitle>
-        <View style={styles.row}>
-          <GradientFill name="gold" raised style={styles.levelBadge}>
-            <ThemedText style={[styles.levelNumber, { color: OnGradient.gold }]}>
-              {level.level}
-            </ThemedText>
-          </GradientFill>
-          <View style={styles.flex}>
-            <ThemedText type="smallBold">
-              {level.title} · {points.toLocaleString()} pts
-            </ThemedText>
-            <ProgressBar value={level.progress} max={1} color="gold" height={8} />
-            <ThemedText type="small" themeColor="textSecondary">
-              {level.next
-                ? `${(level.next.min - points).toLocaleString()} pts to ${level.next.title}`
-                : 'Top level!'}
-            </ThemedText>
-          </View>
-        </View>
-        {next && (
-          <View style={styles.row}>
-            <IconTile icon={next.icon} color={next.color} size={36} />
-            <View style={styles.flex}>
-              <ThemedText type="small">
-                Next badge: <ThemedText type="smallBold">{next.title}</ThemedText>
-              </ThemedText>
-              <ThemedText type="small" style={{ color: theme[accentText(next.color)] }}>
-                {Math.round(next.progress * 100)}% there · {next.description}
-              </ThemedText>
+              <ThemedText themeColor="textSecondary">{intro.text}</ThemedText>
             </View>
-          </View>
-        )}
-      </Card>
-    </Pressable>
-  );
-}
+          ) : (
+            <ThemedText type="quote" style={styles.greeting}>
+              {greeting()}
+              {data?.profile?.name ? `, ${data.profile.name}` : ''}.
+            </ThemedText>
+          )}
 
-function RingStat({
-  label,
-  value,
-  goal,
-  unit,
-  color,
-}: {
-  label: string;
-  value: number;
-  goal: number;
-  unit: string;
-  color: GradientName;
-}) {
-  const theme = useTheme();
-  const c = theme[accentText(color)];
-  return (
-    <View>
-      <ThemedText type="smallBold">{label}</ThemedText>
-      <ThemedText style={[styles.ringValue, { color: c }]}>
-        {value}/{goal}
-        <ThemedText style={[styles.ringUnit, { color: c }]}> {unit}</ThemedText>
-      </ThemedText>
+          {data && (
+            <TileGrid>
+              {renderTiles(category, {
+                ...data,
+                steps: steps?.total ?? data.summary.steps,
+                hopeOffset,
+                nextHope: () => setHopeOffset((o) => o + 1),
+                addWater: async () => {
+                  await logWater(db, 250, today);
+                  reload();
+                },
+                setMood: async (mood: number) => {
+                  await saveMoodCheckin(db, { day: today, mood, note: data.checkin?.note ?? '' });
+                  reload();
+                },
+              })}
+            </TileGrid>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
-function StepsCard({ steps, goal }: { steps: StepData; goal: number }) {
+type TileData = {
+  week: Awaited<ReturnType<typeof getDaySummaries>>;
+  summary: Awaited<ReturnType<typeof getDaySummaries>>[number];
+  goals: Awaited<ReturnType<typeof getGoals>>;
+  profile: Awaited<ReturnType<typeof getProfile>>;
+  checkin: Awaited<ReturnType<typeof getMoodCheckin>>;
+  hope: ReturnType<typeof personalHopeStats>;
+  points: number;
+  newBadges: number;
+  cardio: Awaited<ReturnType<typeof getCardioLoad>>;
+  restingHr: number | null;
+  bp: Awaited<ReturnType<typeof getVitals>>[number] | null;
+  steps: number;
+  hopeOffset: number;
+  nextHope: () => void;
+  addWater: () => void;
+  setMood: (mood: number) => void;
+};
+
+function renderTiles(category: Category, d: TileData) {
+  const t = {
+    boost: <BoostTile key="boost" d={d} />,
+    daily: <DailyActivityTile key="daily" d={d} />,
+    steps: <StepsTile key="steps" d={d} />,
+    stepsWeek: <StepsTile key="steps-week" d={d} wide />,
+    food: <FoodTile key="food" d={d} />,
+    foodWide: <FoodTile key="food-wide" d={d} wide />,
+    heart: <HeartTile key="heart" d={d} />,
+    vitals: <VitalsTile key="vitals" d={d} />,
+    mood: <MoodTile key="mood" d={d} />,
+    moodWide: <MoodTile key="mood-wide" d={d} wide />,
+    hearing: <HearingTile key="hearing" />,
+    water: <WaterTile key="water" d={d} />,
+    cardio: <CardioTile key="cardio" d={d} />,
+    cardioWide: <CardioTile key="cardio-wide" d={d} wide />,
+    workouts: <WorkoutsTile key="workouts" d={d} />,
+    rewards: <RewardsTile key="rewards" d={d} />,
+    mind: <MeditateTile key="mind" />,
+    plan: <PlanTile key="plan" d={d} />,
+    start: <StartWorkoutTile key="start" />,
+    journal: <JournalTile key="journal" />,
+    scan: <ScanTile key="scan" />,
+  };
+  switch (category) {
+    case 'activity':
+      return [t.daily, t.workouts, t.plan, t.cardioWide, t.stepsWeek, t.start, t.rewards];
+    case 'heart':
+      return [t.heart, t.vitals, t.cardio, t.hearing, t.steps];
+    case 'mind':
+      return [t.moodWide, t.mind, t.journal, t.boost];
+    case 'food':
+      return [t.foodWide, t.water, t.scan];
+    default:
+      return [
+        t.boost,
+        t.daily,
+        t.food,
+        t.steps,
+        t.heart,
+        t.mood,
+        t.hearing,
+        t.water,
+        t.cardio,
+        t.workouts,
+        t.rewards,
+        t.mind,
+        t.plan,
+        t.start,
+      ];
+  }
+}
+
+function Header({ name }: { name: string }) {
   const theme = useTheme();
-  const hourly = steps.hourly;
-  const max = Math.max(...(hourly ?? []), 1);
   return (
-    <Card>
-      <CardTitle
-        right={
-          <Ring size={44} stroke={6} progress={steps.total / goal} color="calm">
-            <Icon name={{ mci: 'shoe-print' }} size={16} color={theme.calm} />
-          </Ring>
-        }>
-        Step Count
-      </CardTitle>
-      <View>
-        <ThemedText type="smallBold">Today</ThemedText>
-        <ThemedText type="display" style={{ color: theme.calm }}>
-          {steps.total.toLocaleString()}
-          <ThemedText type="smallBold" style={{ color: theme.calm }}>
-            {' '}
-            / {goal.toLocaleString()}
+    <View style={styles.header}>
+      <ThemedText style={styles.wordmark}>Kenko</ThemedText>
+      <View style={styles.headerRight}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Your profile"
+          onPress={() => router.push('/profile')}
+          style={[styles.avatar, { backgroundColor: TileColors.activity }]}>
+          <ThemedText type="smallBold" style={styles.avatarText}>
+            {name ? name[0].toUpperCase() : '?'}
           </ThemedText>
-        </ThemedText>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+          hitSlop={10}
+          onPress={() => router.push('/settings')}>
+          <Icon name={{ mci: 'dots-vertical' }} size={24} color={theme.text} />
+        </Pressable>
       </View>
-      {hourly ? (
-        <>
-          <View style={styles.hourly}>
-            {hourly.map((v, h) => (
-              <View key={h} style={styles.hourSlot}>
-                <View
-                  style={[
-                    styles.hourGrid,
-                    { borderColor: h % 6 === 0 ? theme.textSecondary : theme.backgroundSelected },
-                  ]}
-                />
-                {v > 0 && (
-                  <GradientFill
-                    name="calm"
-                    angle={0}
-                    style={{
-                      height: `${Math.max((v / max) * 100, 6)}%`,
-                      width: 5,
-                      borderRadius: 3,
-                    }}
-                  />
-                )}
-              </View>
-            ))}
-          </View>
-          <View style={styles.hourLabels}>
-            {['00', '06', '12', '18'].map((l) => (
-              <ThemedText key={l} type="small" themeColor="textSecondary" style={styles.hourLabel}>
-                {l}
-              </ThemedText>
-            ))}
-          </View>
-        </>
-      ) : (
-        <ThemedText type="small" themeColor="textSecondary">
-          Counted by your phone&apos;s step sensor while Kenko is open.
+    </View>
+  );
+}
+
+function CategoryBar({ value, onChange }: { value: Category; onChange: (c: Category) => void }) {
+  const theme = useTheme();
+  const dark = useColorScheme() === 'dark';
+  return (
+    <View
+      style={[
+        styles.categoryBar,
+        {
+          borderColor: dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)',
+          backgroundColor: dark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.7)',
+        },
+      ]}>
+      {CATEGORIES.map((c) => {
+        const selected = c.id === value;
+        return (
+          <Pressable
+            key={c.id}
+            accessibilityRole="tab"
+            accessibilityLabel={c.label}
+            accessibilityState={{ selected }}
+            onPress={() => onChange(c.id)}
+            style={[
+              styles.categoryItem,
+              selected && {
+                backgroundColor: dark ? 'rgba(255,255,255,0.16)' : 'rgba(14,122,96,0.14)',
+              },
+            ]}>
+            <Icon name={c.icon} size={22} color={selected ? theme.text : theme.textSecondary} />
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// --- Tiles -------------------------------------------------------------------------------------
+
+function BoostTile({ d }: { d: TileData }) {
+  const stat = hopeStatOfTheDay(d.hope, d.hopeOffset);
+  return (
+    <Tile
+      title="Daily boost"
+      color="energy"
+      wide
+      height="auto"
+      onPress={d.nextHope}
+      accessibilityLabel="Daily boost. Tap for another encouraging stat"
+      art={<OrbArt icon={{ mci: 'fire' }} from="#FF7A1A" to="#FFD45C" />}>
+      <ThemedText type="quote" style={styles.boostQuote}>
+        {quoteOfTheDay()}
+      </ThemedText>
+      <ThemedText style={styles.boostStat}>{stat.text}</ThemedText>
+      {stat.source && (
+        <ThemedText type="small" style={styles.boostSource}>
+          Source: {stat.source}
         </ThemedText>
       )}
-    </Card>
+    </Tile>
   );
 }
 
-function WorkoutPrompt() {
+function DailyActivityTile({ d }: { d: TileData }) {
   const theme = useTheme();
+  const rows = [
+    { icon: 'shoe-print', color: '#4CC44F', value: d.steps.toLocaleString(), unit: 'steps' },
+    {
+      icon: 'clock-outline',
+      color: '#1EA5E9',
+      value: String(Math.round(d.summary.exerciseMinutes)),
+      unit: 'mins',
+    },
+    {
+      icon: 'fire',
+      color: '#9B4DE0',
+      value: String(Math.round(d.summary.activeCalories)),
+      unit: 'Cal',
+    },
+  ];
   return (
-    <Card accent="tint" style={styles.workout}>
-      <View style={styles.workoutTop}>
-        <Icon name={{ mci: 'run-fast' }} size={48} color={theme.tintText} />
-        <PlayButton label="Start a workout" onPress={() => router.push('/activity')} />
+    <Tile title="Daily activity" color="surface" wide onPress={() => router.push('/health/daily')}>
+      <View style={styles.dailyRow}>
+        <View style={styles.dailyList}>
+          {rows.map((r) => (
+            <View key={r.unit} style={styles.dailyItem}>
+              <View style={[styles.dot, { backgroundColor: r.color }]}>
+                <Icon name={{ mci: r.icon as never }} size={13} color="#FFFFFF" />
+              </View>
+              <ThemedText style={styles.dailyValue}>
+                {r.value}{' '}
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  {r.unit}
+                </ThemedText>
+              </ThemedText>
+            </View>
+          ))}
+        </View>
+        <Rings
+          size={112}
+          stroke={12}
+          gap={2}
+          rings={[
+            { progress: d.steps / d.goals.steps, color: 'tint' },
+            { progress: d.summary.exerciseMinutes / d.goals.exerciseMinutes, color: 'sky' },
+            { progress: d.summary.activeCalories / d.goals.moveCalories, color: 'calm' },
+          ]}
+        />
       </View>
-      <ThemedText style={styles.workoutTitle}>Start a Workout</ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
-        Walk, run, cycle, football, strength, yoga and more.
+        <ThemedText type="small" style={{ color: theme.tintText }}>
+          ●
+        </ThemedText>{' '}
+        Steps{'  '}
+        <ThemedText type="small" style={{ color: theme.skyText }}>
+          ●
+        </ThemedText>{' '}
+        Active mins{'  '}
+        <ThemedText type="small" style={{ color: theme.calm }}>
+          ●
+        </ThemedText>{' '}
+        Active cal
       </ThemedText>
-    </Card>
+    </Tile>
   );
 }
 
-function MacroRing({
-  label,
-  value,
-  goal,
-  color,
-}: {
-  label: string;
-  value: number;
-  goal: number;
-  color: GradientName;
-}) {
-  return (
-    <Ring size={52} stroke={6} progress={value / goal} color={color} warnOver>
-      <ThemedText type="smallBold" style={styles.macroLabel}>
-        {label}
-      </ThemedText>
-    </Ring>
-  );
-}
-
-function MindfulCard({ suggestionId }: { suggestionId: string }) {
-  const theme = useTheme();
-  const suggestion = getMeditation(suggestionId) ?? MEDITATIONS[0];
-  const open = () => router.push({ pathname: '/session/[id]', params: { id: suggestion.id } });
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Start ${suggestion.title}`}
-      onPress={open}
-      style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}>
-      <GradientFill name="calm" raised style={styles.mindful}>
-        <View style={[styles.mindfulGlow, radialGlow('rgba(255,255,255,0.35)')]} />
-        <View style={styles.flex}>
-          <ThemedText type="smallBold" style={styles.mindfulEyebrow}>
-            SUGGESTED FOR NOW
-          </ThemedText>
-          <ThemedText style={styles.mindfulTitle}>{suggestion.title}</ThemedText>
-          <ThemedText type="small" style={styles.mindfulSub}>
-            {suggestion.minutes} min · {suggestion.description}
-          </ThemedText>
-        </View>
-        <View style={styles.playWhite}>
-          <Icon name={{ mci: 'play' }} size={28} color={theme.calm} />
-        </View>
-      </GradientFill>
-    </Pressable>
-  );
-}
-
-function Chevron() {
+function StepsTile({ d, wide = false }: { d: TileData; wide?: boolean }) {
   const theme = useTheme();
   return (
-    <View style={[styles.chevron, { backgroundColor: theme.backgroundSelected }]}>
-      <Icon name={{ mci: 'chevron-right' }} size={18} color={theme.textSecondary} />
-    </View>
+    <Tile title="Steps" color="surface" wide={wide} onPress={() => router.push('/health/daily')}>
+      <View style={styles.stepsBottom}>
+        <View>
+          <ThemedText style={styles.bigNumber}>{d.steps.toLocaleString()}</ThemedText>
+          <ThemedText themeColor="textSecondary">{d.goals.steps.toLocaleString()} steps</ThemedText>
+        </View>
+        {wide && (
+          <View style={styles.weekDays}>
+            {d.week.map((day, i) => {
+              const isToday = i === d.week.length - 1;
+              return (
+                <ThemedText
+                  key={day.day}
+                  type="small"
+                  style={{
+                    color: isToday
+                      ? theme.danger
+                      : day.steps >= d.goals.steps
+                        ? theme.tintText
+                        : theme.textSecondary,
+                    fontWeight: isToday ? 700 : 500,
+                  }}>
+                  {fromDayKey(day.day).getDate()}
+                </ThemedText>
+              );
+            })}
+          </View>
+        )}
+      </View>
+      {!wide && <ProgressBar value={d.steps} max={d.goals.steps} color="tint" height={10} />}
+    </Tile>
   );
 }
 
-/** Pick a session that fits the time of day. */
-function suggestMeditationId() {
+function FoodTile({ d, wide = false }: { d: TileData; wide?: boolean }) {
+  const eaten = Math.round(d.summary.calories);
+  return (
+    <Tile
+      title="Food"
+      color="food"
+      wide={wide}
+      onPress={() => router.push('/food')}
+      art={<OrbArt icon={{ mci: 'fruit-citrus' }} from="#FF8A1A" to="#FFD36B" size={78} />}
+      body={
+        eaten
+          ? `${eaten.toLocaleString()} of ${d.goals.calories.toLocaleString()} kcal`
+          : 'Ready to log your first meal?'
+      }>
+      {wide && eaten > 0 && (
+        <ThemedText style={styles.tileLine}>
+          Protein {Math.round(d.summary.protein)} g · Carbs {Math.round(d.summary.carbs)} g · Fat{' '}
+          {Math.round(d.summary.fat)} g
+        </ThemedText>
+      )}
+    </Tile>
+  );
+}
+
+function HeartTile({ d }: { d: TileData }) {
+  const parts = [
+    d.restingHr ? `${d.restingHr} bpm resting` : null,
+    d.bp ? `${d.bp.systolic}/${d.bp.diastolic} mmHg` : null,
+  ].filter(Boolean);
+  return (
+    <Tile
+      title="Heart health"
+      color="heart"
+      wide
+      onPress={() => router.push('/health/heart')}
+      art={<RingsArt icon={{ mci: 'heart' }} color="#E546C8" size={130} />}
+      body={
+        parts.length
+          ? parts.join(' · ')
+          : 'Measure your pulse and log blood pressure to see your heart health in one place.'
+      }
+    />
+  );
+}
+
+function VitalsTile({ d }: { d: TileData }) {
+  const category = d.bp ? bloodPressureCategory(d.bp.systolic!, d.bp.diastolic!) : null;
+  return (
+    <Tile
+      title="Vitals"
+      color="vitals"
+      onPress={() => router.push('/health/heart')}
+      art={<RingsArt icon={{ mci: 'gauge' }} color="#22D3EE" size={110} />}
+      body={category ? `Blood pressure: ${category.label}` : 'Learn how vitals tracking works.'}
+    />
+  );
+}
+
+function MoodTile({ d, wide = false }: { d: TileData; wide?: boolean }) {
+  if (!wide) {
+    return (
+      <Tile
+        title="Mood"
+        color="mood"
+        onPress={() => router.push('/mind-entry')}
+        art={<OrbArt icon={{ mci: 'flower' }} from="#FF3FA4" to="#FF9AD0" size={76} />}
+        body={d.checkin ? 'Checked in today. Tap to journal.' : 'How are you feeling today?'}>
+        {d.checkin && <ThemedText style={styles.moodEmoji}>{moodEmoji(d.checkin.mood)}</ThemedText>}
+      </Tile>
+    );
+  }
+  return (
+    <Tile
+      title="How are you feeling?"
+      color="mood"
+      wide
+      art={<OrbArt icon={{ mci: 'flower' }} from="#FF3FA4" to="#FF9AD0" size={76} />}
+      body="Tap a face for a quick check-in.">
+      <View style={styles.moodRow}>
+        {MOODS.map((m) => {
+          const selected = d.checkin?.mood === m.value;
+          return (
+            <Pressable
+              key={m.value}
+              accessibilityRole="button"
+              accessibilityLabel={`Mood: ${m.label}`}
+              accessibilityState={{ selected }}
+              onPress={() => d.setMood(m.value)}
+              style={[styles.moodButton, selected && styles.moodSelected]}>
+              <ThemedText style={styles.moodFace}>{m.emoji}</ThemedText>
+            </Pressable>
+          );
+        })}
+      </View>
+    </Tile>
+  );
+}
+
+function HearingTile() {
+  return (
+    <Tile
+      title="Hearing"
+      color="hearing"
+      onPress={() => router.push('/health/hearing')}
+      art={<RingsArt icon={{ mci: 'waveform' }} color="#7A4A35" size={110} />}
+      body="Learn how sound exposure affects your hearing."
+    />
+  );
+}
+
+function WaterTile({ d }: { d: TileData }) {
+  return (
+    <Tile
+      title="Water"
+      color="water"
+      art={<OrbArt icon={{ mci: 'cup-water' }} from="#1F7FE0" to="#7CC4FF" size={70} />}>
+      <ThemedText style={styles.tileNumber}>
+        {(d.summary.waterMl / 1000).toFixed(2).replace(/0$/, '')}
+        <ThemedText style={styles.tileUnit}> / {(d.goals.waterMl / 1000).toFixed(1)} L</ThemedText>
+      </ThemedText>
+      <TileButton label="+250 ml" icon={{ mci: 'water-plus' }} onPress={d.addWater} />
+    </Tile>
+  );
+}
+
+function CardioTile({ d, wide = false }: { d: TileData; wide?: boolean }) {
+  return (
+    <Tile
+      title="Daily cardio load"
+      color="cardio"
+      wide={wide}
+      onPress={() => router.push('/health/cardio-load')}
+      art={<RingsArt icon={{ mci: 'speedometer' }} color="#2F9BFF" size={wide ? 140 : 110} />}
+      body={
+        d.cardio.today > 0 || d.cardio.ratio !== null
+          ? `Today ${d.cardio.today} · ${d.cardio.status.short}`
+          : 'Find your daily training sweet spot.'
+      }>
+      {wide && <ThemedText style={styles.tileLine}>{d.cardio.status.detail}</ThemedText>}
+    </Tile>
+  );
+}
+
+function WorkoutsTile({ d }: { d: TileData }) {
+  const done = d.week.reduce((s, x) => s + x.workouts, 0);
+  return (
+    <Tile
+      title="Workouts this week"
+      color="activity"
+      onPress={() => router.push('/activity')}
+      art={<OrbArt icon={{ mci: 'timer' }} from="#11A07C" to="#6FE3C1" size={72} />}>
+      <ThemedText style={styles.tileNumber}>
+        {done}
+        <ThemedText style={styles.tileUnit}> of {d.goals.weeklyWorkouts}</ThemedText>
+      </ThemedText>
+      <ThemedText style={styles.tileLine}>
+        {done >= d.goals.weeklyWorkouts ? 'Plan complete 🎉' : 'See your weekly totals.'}
+      </ThemedText>
+    </Tile>
+  );
+}
+
+function RewardsTile({ d }: { d: TileData }) {
+  const level = levelFor(d.points);
+  return (
+    <Tile
+      title="Rewards"
+      color="rewards"
+      onPress={() => router.push('/badges')}
+      art={<OrbArt icon={{ mci: 'trophy' }} from="#F5A300" to="#FFE27A" size={72} />}
+      body={
+        d.newBadges > 0
+          ? `${d.newBadges} new badge${d.newBadges === 1 ? '' : 's'}!`
+          : `${d.points.toLocaleString()} points`
+      }>
+      <ThemedText style={styles.tileNumber}>Lv {level.level}</ThemedText>
+      <ThemedText style={styles.tileLine}>{level.title}</ThemedText>
+    </Tile>
+  );
+}
+
+function MeditateTile() {
   const hour = new Date().getHours();
-  return hour < 11 ? 'morning-reset' : hour >= 21 ? 'sleep-wind-down' : 'box-breathing';
+  const id = hour < 11 ? 'morning-reset' : hour >= 21 ? 'sleep-wind-down' : 'box-breathing';
+  const m = getMeditation(id) ?? MEDITATIONS[0];
+  return (
+    <Tile
+      title="Meditate"
+      color="mind"
+      wide
+      onPress={() => router.push({ pathname: '/session/[id]', params: { id: m.id } })}
+      art={<NightArt />}
+      body={`${m.title} · ${m.minutes} min — ${m.description}`}
+    />
+  );
+}
+
+function PlanTile({ d }: { d: TileData }) {
+  return (
+    <Tile
+      title="Fitness plan"
+      color="fitness"
+      onPress={() => router.push('/profile')}
+      art={<OrbArt icon={{ mci: 'shield-star' }} from="#14B88F" to="#9AF0D3" size={70} />}
+      body={
+        d.profile
+          ? `${levelLabel(d.profile.fitnessLevel)} · ${d.goals.exerciseMinutes} min a day`
+          : 'Set your level and focus.'
+      }
+    />
+  );
+}
+
+function StartWorkoutTile() {
+  return (
+    <Tile
+      title="Start a workout"
+      color="activity"
+      onPress={() => router.push('/activity')}
+      art={<OrbArt icon={{ mci: 'run-fast' }} from="#11A07C" to="#6FE3C1" size={72} />}
+      body="59 sports, live timer and notifications."
+    />
+  );
+}
+
+function JournalTile() {
+  return (
+    <Tile
+      title="Journal"
+      color="heart"
+      onPress={() => router.push('/mind-entry')}
+      art={<OrbArt icon={{ mci: 'notebook' }} from="#B565C9" to="#E9B6FF" size={70} />}
+      body="Write how you feel — only you can see it."
+    />
+  );
+}
+
+function ScanTile() {
+  return (
+    <Tile
+      title="Log a meal"
+      color="food"
+      onPress={() => router.push('/add-meal')}
+      art={<OrbArt icon={{ mci: 'barcode-scan' }} from="#FF8A1A" to="#FFD36B" size={70} />}
+      body="Search, scan a barcode or enter it."
+    />
+  );
 }
 
 const styles = StyleSheet.create({
-  flex: {
+  fill: {
     flex: 1,
   },
-  row: {
+  content: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two + 2,
-    borderRadius: 999,
-  },
-  motivation: {
-    borderRadius: 28,
-    padding: Spacing.four,
-    gap: Spacing.three,
-    overflow: 'hidden',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(139,255,192,0.25)',
-  },
-  motivationGlow: {
-    position: 'absolute',
-    top: -160,
-    right: -120,
-    width: 340,
-    height: 340,
-    borderRadius: 170,
-  },
-  motivationGlow2: {
-    position: 'absolute',
-    bottom: -160,
-    left: -120,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-  },
-  quoteMark: {
-    color: '#39F08D',
-    fontSize: 64,
-    lineHeight: 56,
-    marginBottom: -Spacing.four,
-  },
-  quote: {
-    color: '#F1FFF6',
-    fontSize: 23,
-    lineHeight: 31,
-  },
-  hope: {
-    flexDirection: 'row',
-    gap: Spacing.two + 2,
-    padding: Spacing.three,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(139,255,192,0.2)',
-  },
-  hopeText: {
-    color: '#DFFFEA',
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: 500,
-  },
-  hopeSource: {
-    color: 'rgba(223,255,234,0.6)',
-    fontSize: 12,
-    marginTop: Spacing.one,
-  },
-  tapHint: {
-    color: 'rgba(223,255,234,0.5)',
-    fontSize: 12,
-    textAlign: 'right',
-    marginTop: -Spacing.two,
-  },
-  badgeMedal: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
   },
-  ringsRow: {
+  column: {
+    flex: 1,
+    maxWidth: MaxContentWidth,
+    gap: Spacing.three,
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.four,
+    justifyContent: 'space-between',
   },
-  ringLegend: {
-    flex: 1,
-    gap: Spacing.two + 2,
-  },
-  ringValue: {
-    fontSize: 22,
-    lineHeight: 27,
+  wordmark: {
+    fontSize: 24,
+    lineHeight: 30,
     fontWeight: 700,
-    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.6,
   },
-  ringUnit: {
-    fontSize: 13,
-    fontWeight: 700,
-  },
-  planDots: {
+  headerRight: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
+    alignItems: 'center',
+    gap: Spacing.three,
   },
-  planDot: {
+  avatar: {
     width: 34,
     height: 34,
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  levelBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
+  avatarText: {
+    color: '#FFFFFF',
+  },
+  categoryBar: {
+    flexDirection: 'row',
+    borderRadius: 999,
+    borderWidth: 1,
+    padding: 4,
+  },
+  categoryItem: {
+    flex: 1,
+    height: 44,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  levelNumber: {
-    fontSize: 26,
-    fontWeight: 800,
+  intro: {
+    gap: Spacing.one,
+    paddingHorizontal: Spacing.one,
   },
-  hourly: {
-    height: 70,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+  introTitle: {
+    fontSize: 24,
+    lineHeight: 30,
   },
-  hourSlot: {
-    flex: 1,
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+  greeting: {
+    paddingHorizontal: Spacing.one,
+    fontSize: 22,
+    lineHeight: 28,
   },
-  hourGrid: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    borderLeftWidth: StyleSheet.hairlineWidth,
+  boostQuote: {
+    color: '#FFFFFF',
+    fontSize: 21,
+    lineHeight: 28,
+    marginTop: Spacing.two,
+    marginRight: 70,
   },
-  hourLabels: {
-    flexDirection: 'row',
+  boostStat: {
+    color: 'rgba(255,255,255,0.92)',
+    fontSize: 15,
+    lineHeight: 21,
+    marginTop: Spacing.two,
   },
-  hourLabel: {
-    flex: 1,
+  boostSource: {
+    color: 'rgba(255,255,255,0.65)',
     fontSize: 12,
   },
-  workout: {
-    gap: Spacing.one,
-  },
-  workoutTop: {
+  dailyRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.two,
   },
-  workoutTitle: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: 800,
-    letterSpacing: -0.8,
+  dailyList: {
+    gap: Spacing.two,
   },
-  nutritionRow: {
+  dailyItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
   },
-  macroLabel: {
-    fontSize: 12,
-  },
-  mindful: {
-    borderRadius: 28,
-    padding: Spacing.four,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    overflow: 'hidden',
-  },
-  mindfulGlow: {
-    position: 'absolute',
-    top: -120,
-    right: -80,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-  },
-  mindfulEyebrow: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 11,
-    letterSpacing: 1.2,
-  },
-  mindfulTitle: {
-    color: OnGradient.calm,
-    fontSize: 24,
-    lineHeight: 30,
-    fontWeight: 800,
-    letterSpacing: -0.5,
-  },
-  mindfulSub: {
-    color: 'rgba(255,255,255,0.88)',
-  },
-  healthGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.three,
-  },
-  healthTile: {
-    width: '46%',
-    flexGrow: 1,
-  },
-  healthCard: {
-    gap: Spacing.one,
-    padding: Spacing.three,
-  },
-  playWhite: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#ffffff',
+  dot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 6px 16px rgba(0,0,0,0.25)',
   },
-  chevron: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  dailyValue: {
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: 700,
+  },
+  stepsBottom: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  bigNumber: {
+    fontSize: 38,
+    lineHeight: 44,
+    fontWeight: 700,
+    letterSpacing: -1,
+  },
+  weekDays: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  tileNumber: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: 700,
+  },
+  tileUnit: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 15,
+    fontWeight: 500,
+  },
+  tileLine: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  moodEmoji: {
+    fontSize: 38,
+    lineHeight: 46,
+  },
+  moodRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: Spacing.three,
+  },
+  moodButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  moodSelected: {
+    backgroundColor: 'rgba(255,255,255,0.45)',
+  },
+  moodFace: {
+    fontSize: 28,
+    lineHeight: 34,
   },
 });

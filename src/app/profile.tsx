@@ -209,6 +209,22 @@ function ProfileForm({
           Check your birth year, height and weight.
         </ThemedText>
       )}
+
+      {!welcome && (
+        <Card accent="sky">
+          <CardTitle>Transfer your data</CardTitle>
+          <ThemedText themeColor="textSecondary">
+            Switching between iPhone and Android, or coming from Apple Health, Samsung Health or
+            Google Fit? Bring your history with you.
+          </ThemedText>
+          <Button
+            label="Transfer data"
+            color="sky"
+            icon={{ mci: 'swap-horizontal' }}
+            onPress={() => router.push('/transfer')}
+          />
+        </Card>
+      )}
     </Screen>
   );
 }

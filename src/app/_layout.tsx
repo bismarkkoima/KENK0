@@ -111,6 +111,7 @@ export default function RootLayout() {
           <Stack.Screen name="badges" options={{ title: 'Badges & rewards' }} />
           <Stack.Screen name="backup" options={{ title: 'Backup & restore' }} />
           <Stack.Screen name="permissions" options={{ title: 'Permissions' }} />
+          <Stack.Screen name="transfer" options={{ title: 'Transfer data' }} />
           <Stack.Screen name="health/daily" options={{ title: 'Daily activity' }} />
           <Stack.Screen name="health/cardio-load" options={{ title: 'Cardio load' }} />
           <Stack.Screen name="health/heart" options={{ title: 'Heart health' }} />

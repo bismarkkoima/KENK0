@@ -46,6 +46,13 @@ const ROWS: { href: Href; icon: AppIcon; color: GradientName; title: string; det
     detail: 'Gentle nudges through the day',
   },
   {
+    href: '/transfer',
+    icon: { mci: 'swap-horizontal' },
+    color: 'sky',
+    title: 'Transfer data',
+    detail: 'iPhone ⇄ Android, Apple Health, Samsung, Google Fit',
+  },
+  {
     href: '/backup',
     icon: { mci: 'cloud-upload' },
     color: 'sky',
