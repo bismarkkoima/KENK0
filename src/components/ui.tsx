@@ -1,5 +1,4 @@
 import { BlurView } from 'expo-blur';
-import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useId, type PropsWithChildren, type ReactNode } from 'react';
 import {
   Platform,
@@ -15,9 +14,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, G, LinearGradient, Stop } from 'react-native-svg';
 
+import { Icon, type AppIcon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
 import {
   BottomTabInset,
+  FontFiles,
   Gradients,
   MaxContentWidth,
   OnGradient,
@@ -31,7 +32,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 import { linearGradient, radialGlow, withAlpha } from '@/lib/style';
 
-export type IconName = SymbolViewProps['name'];
+export type IconName = AppIcon;
 
 /**
  * Real backdrop blur on iOS and web. Android's blur needs a dedicated target view and is costly
@@ -141,15 +142,26 @@ export function Card({
 }: PropsWithChildren<{ style?: StyleProp<ViewStyle>; accent?: GradientName }>) {
   const theme = useTheme();
   const scheme = useColorScheme();
+  const dark = scheme === 'dark';
   const background = accent
-    ? withAlpha(theme[Gradients[accent][0]], scheme === 'dark' ? 0.13 : 0.14)
+    ? withAlpha(theme[Gradients[accent][0]], dark ? 0.14 : 0.13)
     : theme.backgroundElement;
+  // A lit top edge and a soft drop shadow lift the card off the background.
+  const edge = accent
+    ? withAlpha(theme[Gradients[accent][0]], dark ? 0.35 : 0.25)
+    : dark
+      ? 'rgba(140,255,190,0.10)'
+      : 'rgba(255,255,255,1)';
   return (
     <View
       style={[
         styles.card,
-        { backgroundColor: background },
-        !accent && scheme !== 'dark' && { boxShadow: `0 2px 12px ${theme.shadow}` },
+        {
+          backgroundColor: background,
+          borderTopColor: edge,
+          borderTopWidth: 1,
+          boxShadow: dark ? '0 10px 24px rgba(0,0,0,0.55)' : `0 8px 22px ${theme.shadow}`,
+        },
         style,
       ]}>
       {children}
@@ -178,16 +190,43 @@ export function SectionTitle({ children, right }: PropsWithChildren<{ right?: Re
   );
 }
 
-/** A view filled with one of the accent gradients. */
+/**
+ * A view filled with one of the accent gradients. `raised` gives it a glossy, 3D look: a light
+ * sheen across the top, a soft inner shadow at the bottom and a colored glow underneath.
+ */
 export function GradientFill({
   name,
   style,
   angle = 135,
+  raised = false,
   children,
-}: PropsWithChildren<{ name: GradientName; style?: StyleProp<ViewStyle>; angle?: number }>) {
+}: PropsWithChildren<{
+  name: GradientName;
+  style?: StyleProp<ViewStyle>;
+  angle?: number;
+  raised?: boolean;
+}>) {
   const theme = useTheme();
   const [from, to] = Gradients[name];
-  return <View style={[linearGradient(theme[from], theme[to], angle), style]}>{children}</View>;
+  if (!raised) {
+    return <View style={[linearGradient(theme[from], theme[to], angle), style]}>{children}</View>;
+  }
+  return (
+    <View
+      style={[
+        linearGradient(theme[to], theme[from], 180),
+        {
+          boxShadow: `0 6px 18px ${withAlpha(theme[from], 0.45)}, inset 0 -3px 8px rgba(0,0,0,0.22), inset 0 2px 1px rgba(255,255,255,0.45)`,
+        },
+        style,
+      ]}>
+      <View
+        pointerEvents="none"
+        style={[styles.gloss, linearGradient('rgba(255,255,255,0.42)', 'rgba(255,255,255,0)', 180)]}
+      />
+      {children}
+    </View>
+  );
 }
 
 export function ProgressBar({
@@ -291,6 +330,22 @@ export function Rings({
                 fill="none"
               />
               {clamped > 0 && (
+                // Soft glow under the progress arc.
+                <Circle
+                  cx={c}
+                  cy={c}
+                  r={r}
+                  stroke={theme[Gradients[ring.color][0]]}
+                  strokeOpacity={0.28}
+                  strokeWidth={stroke * 1.7}
+                  strokeLinecap="round"
+                  fill="none"
+                  strokeDasharray={`${circumference} ${circumference}`}
+                  strokeDashoffset={circumference * (1 - clamped)}
+                  transform={`rotate(-90 ${c} ${c})`}
+                />
+              )}
+              {clamped > 0 && (
                 <Circle
                   cx={c}
                   cy={c}
@@ -333,7 +388,7 @@ export function Button({
   const textColor = primary ? OnGradient[color] : theme.text;
   const content = (
     <View style={styles.buttonContent}>
-      {icon && <SymbolView name={icon} size={18} tintColor={textColor} />}
+      {icon && <Icon name={icon} size={18} color={textColor} />}
       <ThemedText type="smallBold" style={[styles.buttonText, { color: textColor }]}>
         {label}
       </ThemedText>
@@ -350,7 +405,7 @@ export function Button({
         { opacity: disabled ? 0.4 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
       ]}>
       {primary ? (
-        <GradientFill name={color} style={styles.button}>
+        <GradientFill name={color} raised style={styles.button}>
           {content}
         </GradientFill>
       ) : (
@@ -395,7 +450,7 @@ export function IconButton({
         },
         scheme !== 'dark' && { boxShadow: `0 2px 8px ${theme.shadow}` },
       ]}>
-      <SymbolView name={icon} size={size * 0.44} tintColor={theme[color ?? 'text']} />
+      <Icon name={icon} size={size * 0.44} color={theme[color ?? 'text']} />
     </Pressable>
   );
 }
@@ -418,8 +473,9 @@ export function PlayButton({
   const circle = (
     <GradientFill
       name={color}
+      raised
       style={[styles.center, { width: size, height: size, borderRadius: size / 2 }]}>
-      <SymbolView name={icon} size={size * 0.42} tintColor={OnGradient[color]} />
+      <Icon name={icon} size={size * 0.42} color={OnGradient[color]} />
     </GradientFill>
   );
   if (!onPress) return circle;
@@ -450,8 +506,9 @@ export function IconTile({
   return (
     <GradientFill
       name={color}
+      raised
       style={[styles.center, { width: size, height: size, borderRadius: size * 0.32 }]}>
-      <SymbolView name={icon} size={size * 0.5} tintColor={OnGradient[color]} />
+      <Icon name={icon} size={size * 0.5} color={OnGradient[color]} />
     </GradientFill>
   );
 }
@@ -475,7 +532,7 @@ export function Chip({
       onPress={onPress}
       style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
       {selected ? (
-        <GradientFill name={color} style={styles.chip}>
+        <GradientFill name={color} raised style={styles.chip}>
           <ThemedText type="smallBold" style={{ color: OnGradient[color] }}>
             {label}
           </ThemedText>
@@ -503,7 +560,11 @@ export function Field({ label, ...props }: TextInputProps & { label?: string }) 
         {...props}
         style={[
           styles.input,
-          { color: theme.text, backgroundColor: theme.backgroundSelected },
+          {
+            color: theme.text,
+            backgroundColor: theme.backgroundSelected,
+            fontFamily: FontFiles.DMSans[400],
+          },
           props.style,
         ]}
       />
@@ -581,6 +642,15 @@ const styles = StyleSheet.create({
   },
   glass: {
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  gloss: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '52%',
+    borderTopLeftRadius: 999,
+    borderTopRightRadius: 999,
   },
   clip: {
     overflow: 'hidden',

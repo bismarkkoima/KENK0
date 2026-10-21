@@ -1,11 +1,11 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Chip, Field, GradientFill, type IconName } from '@/components/ui';
 import { Fonts, OnGradient, Spacing, type GradientName } from '@/constants/theme';
@@ -93,12 +93,12 @@ function LiveWorkout({ type }: { type: WorkoutType }) {
     <View style={[styles.fill, { backgroundColor: theme.background }]}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}>
-          <SymbolView name={type.icon} size={30} tintColor={accent} />
+          <Icon name={type.icon} size={30} color={accent} />
           <ThemedText type="heading">{type.name}</ThemedText>
         </View>
 
         <View style={styles.metrics}>
-          <ThemedText style={[styles.time, { color: accent }]}>
+          <ThemedText style={[styles.time, { color: theme.skyText }]}>
             {formatDuration(seconds)}
           </ThemedText>
           <ThemedText type="smallBold" themeColor="textSecondary" style={styles.caption}>
@@ -183,7 +183,7 @@ function RoundControl({
       onPress={onPress}
       style={({ pressed }) => [styles.control, { transform: [{ scale: pressed ? 0.94 : 1 }] }]}>
       <GradientFill name={color} style={styles.controlCircle}>
-        <SymbolView name={icon} size={36} tintColor={OnGradient[color]} />
+        <Icon name={icon} size={36} color={OnGradient[color]} />
       </GradientFill>
       <ThemedText type="smallBold">{label}</ThemedText>
     </Pressable>
@@ -234,10 +234,10 @@ function Summary({
         <ThemedText type="subtitle">Nice work!</ThemedText>
         <Card accent={type.color}>
           <View style={styles.header}>
-            <SymbolView
+            <Icon
               name={type.icon}
               size={28}
-              tintColor={theme[type.color === 'tint' ? 'tintText' : type.color]}
+              color={theme[type.color === 'tint' ? 'tintText' : type.color]}
             />
             <ThemedText type="heading">{type.name}</ThemedText>
           </View>

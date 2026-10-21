@@ -20,7 +20,7 @@ export const WORKOUT_TYPES: WorkoutType[] = [
   {
     id: 'walk',
     name: 'Outdoor Walk',
-    icon: { ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' },
+    icon: { mci: 'walk' },
     color: 'tint',
     met: 3.5,
     distance: true,
@@ -29,7 +29,7 @@ export const WORKOUT_TYPES: WorkoutType[] = [
   {
     id: 'run',
     name: 'Outdoor Run',
-    icon: { ios: 'figure.run', android: 'directions_run', web: 'directions_run' },
+    icon: { mci: 'run-fast' },
     color: 'tint',
     met: 9.8,
     distance: true,
@@ -38,11 +38,7 @@ export const WORKOUT_TYPES: WorkoutType[] = [
   {
     id: 'cycle',
     name: 'Outdoor Cycle',
-    icon: {
-      ios: 'figure.outdoor.cycle',
-      android: 'directions_bike',
-      web: 'directions_bike',
-    },
+    icon: { mci: 'bike-fast' },
     color: 'tint',
     met: 7.5,
     distance: true,
@@ -51,11 +47,7 @@ export const WORKOUT_TYPES: WorkoutType[] = [
   {
     id: 'hiit',
     name: 'HIIT',
-    icon: {
-      ios: 'figure.highintensity.intervaltraining',
-      android: 'bolt',
-      web: 'bolt',
-    },
+    icon: { mci: 'lightning-bolt' },
     color: 'move',
     met: 8,
     group: 'cardio',
@@ -63,7 +55,7 @@ export const WORKOUT_TYPES: WorkoutType[] = [
   {
     id: 'swim',
     name: 'Swimming',
-    icon: { ios: 'figure.pool.swim', android: 'pool', web: 'pool' },
+    icon: { mci: 'swim' },
     color: 'water',
     met: 7,
     distance: true,
@@ -72,7 +64,7 @@ export const WORKOUT_TYPES: WorkoutType[] = [
   {
     id: 'football',
     name: 'Football',
-    icon: { ios: 'figure.soccer', android: 'sports_soccer', web: 'sports_soccer' },
+    icon: { mci: 'soccer' },
     color: 'warm',
     met: 7,
     group: 'sports',
@@ -80,11 +72,7 @@ export const WORKOUT_TYPES: WorkoutType[] = [
   {
     id: 'basketball',
     name: 'Basketball',
-    icon: {
-      ios: 'figure.basketball',
-      android: 'sports_basketball',
-      web: 'sports_basketball',
-    },
+    icon: { mci: 'basketball' },
     color: 'warm',
     met: 6.5,
     group: 'sports',
@@ -92,7 +80,7 @@ export const WORKOUT_TYPES: WorkoutType[] = [
   {
     id: 'tennis',
     name: 'Tennis',
-    icon: { ios: 'figure.tennis', android: 'sports_tennis', web: 'sports_tennis' },
+    icon: { mci: 'tennis' },
     color: 'warm',
     met: 7.3,
     group: 'sports',
@@ -100,11 +88,7 @@ export const WORKOUT_TYPES: WorkoutType[] = [
   {
     id: 'strength',
     name: 'Strength Training',
-    icon: {
-      ios: 'figure.strengthtraining.traditional',
-      android: 'fitness_center',
-      web: 'fitness_center',
-    },
+    icon: { mci: 'weight-lifter' },
     color: 'move',
     met: 5,
     group: 'strength',
@@ -112,7 +96,7 @@ export const WORKOUT_TYPES: WorkoutType[] = [
   {
     id: 'yoga',
     name: 'Yoga',
-    icon: { ios: 'figure.yoga', android: 'self_improvement', web: 'self_improvement' },
+    icon: { mci: 'yoga' },
     color: 'mind',
     met: 2.5,
     group: 'mind-body',
@@ -120,7 +104,7 @@ export const WORKOUT_TYPES: WorkoutType[] = [
   {
     id: 'dance',
     name: 'Dance',
-    icon: { ios: 'figure.dance', android: 'nightlife', web: 'nightlife' },
+    icon: { mci: 'human-female-dance' },
     color: 'calm',
     met: 5,
     group: 'mind-body',
@@ -128,7 +112,7 @@ export const WORKOUT_TYPES: WorkoutType[] = [
   {
     id: 'other',
     name: 'Other',
-    icon: { ios: 'figure.mixed.cardio', android: 'sports', web: 'sports' },
+    icon: { mci: 'arm-flex' },
     color: 'tint',
     met: 4,
     group: 'cardio',

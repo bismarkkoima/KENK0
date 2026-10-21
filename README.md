@@ -1,30 +1,42 @@
 # Kenko — health companion
 
 Kenko (健康, "health") is a mobile health companion built with Expo / React Native.
-It brings movement, food and mental wellbeing into one place, with an Apple Fitness–style
-design (bold rounded type, neon accents, activity rings) in light and dark mode.
+It brings movement, food and mental wellbeing into one place — personalized to your body and
+fitness level, with a black-and-deep-green design, glossy 3D accents, light-blue timers and
+Google Fonts typography (DM Sans + Source Serif 4) in light and dark mode.
 
-- **Summary** — Activity rings (Move, Exercise, Mindful), today's step count with an hourly
-  chart (iPhone), mood check-in, nutrition, a suggested meditation and water.
+- **Personal plan** — on first launch Kenko asks about your fitness level, focus, height,
+  weight and age, and sizes every goal to you (energy from the Mifflin–St Jeor equation, protein
+  per kg, water per kg, workouts and steps by level). Beginners start small on purpose.
+- **Summary** — a daily quote and an honest "hope stat" built from *your own* history (e.g.
+  "40% of your workouts happen on Friday mornings — that's your power slot") or a cited
+  research fact; Activity rings (Move, Exercise, Mindful); your week vs. your plan; level,
+  points and next badge; step count with an hourly chart (iPhone); mood, nutrition, a suggested
+  meditation and water.
 - **Activity & sports** — start a live workout (walk, run, cycle, HIIT, swimming, football,
   basketball, tennis, strength, yoga, dance…) with a big timer and live calorie estimate, or log
   one afterwards. Calories are estimated from the activity's MET value, time, effort and your
   weight.
 - **Meal tracking** — log meals by breakfast / lunch / dinner / snack, scan a product barcode
   or search foods from [Open Food Facts](https://world.openfoodfacts.org) with portion
-  scaling, or enter calories and macros manually. Re-log recent foods in one tap.
+  scaling, or enter calories and macros manually.
 - **Mind** — private mental-health check-ins (mood, stress, energy, sleep, emotions, journal
-  and gratitude), guided meditations with an animated breathing orb and spoken guidance, and
-  links to support if you're struggling.
-- **Water** — one-tap water logging.
+  and gratitude), guided meditations with spoken guidance, and links to support.
+- **Badges & rewards** — 27 badges across movement, consistency, steps, mind and nutrition,
+  plus points and levels (Seedling → Legend) that reward effort, not just results.
+- **Trends** — week / month / year analysis: workouts, active minutes, steps, active calories,
+  distance, mindful minutes, mood, stress and water, each compared with the previous period;
+  which weekdays and times you move most; and your workout mix.
+- **Backup** — data lives in a local SQLite database on the phone, is included in Android's
+  Google backup and iPhone's iCloud Backup, and can be exported to a backup file (save it to
+  Google Drive, Files, etc.) and restored.
 - **Reminders** — optional daily notifications for meals, workouts, check-ins, meditation and
   water.
-- **Progress analytics** — 7- and 30-day charts for exercise, move calories, mood, stress,
-  mindful minutes, calories and water, streaks, and insights that link how you feel to your
-  habits (e.g. "your mood averages 4.7/5 on days you work out, vs 2.3 on days you don't").
 
 All data is stored **on the device** in SQLite. Nothing leaves the phone except food search
-queries and scanned barcodes sent to Open Food Facts. Camera images are never stored.
+queries and scanned barcodes sent to Open Food Facts, and the phone's own Google / iCloud
+backup. Kenko never shows statistics about other people — every number is either yours or a
+published study with its source. Camera images are never stored.
 
 ## Install on your phone
 
@@ -109,6 +121,9 @@ The app works in portrait mode and follows the phone's light / dark setting.
 | Mind check-ins & journal | ✅ | ✅ | — |
 | Water & mood tracking | ✅ | ✅ | — |
 | Reminders | ✅ | ❌ | Notification permission |
+| Badges, rewards & trends | ✅ | ✅ | — |
+| Google / iCloud automatic backup | ✅ | ❌ | Backup turned on in the phone's settings |
+| Backup file export & restore | ✅ | ✅ | — |
 
 Everything except food search and barcode lookups works **offline**. Your data stays on the
 phone — deleting the app deletes it, and it doesn't sync between devices yet.
@@ -139,6 +154,10 @@ src/
     workout/[type].tsx    Live workout timer
     log-workout.tsx       Log a past workout
     mind-entry.tsx        Mental-health check-in & journal
+    profile.tsx           Profile & personalized plan (also first-launch onboarding)
+    badges.tsx            Badges, points and levels
+    backup.tsx            Backup & restore
+    settings.tsx          Settings hub
     add-meal.tsx          Log food modal (search + manual entry)
     scan.tsx              Barcode scanner
     goals.tsx             Daily targets modal
@@ -152,7 +171,8 @@ src/
   data/mind.ts            Emotions, check-in scales and journal prompts
   db/                     SQLite schema migrations and queries
   hooks/                  Theme and data-loading hooks
-  lib/                    Dates, Open Food Facts client, reminders, insights
+  lib/                    Dates, Open Food Facts, reminders, insights, profile, stats,
+                          badges, motivation, analysis, backup
 ```
 
 To add a meditation, append an entry to `src/data/meditations.ts`. To change the database,

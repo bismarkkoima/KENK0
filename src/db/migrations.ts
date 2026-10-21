@@ -77,6 +77,13 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX mind_entries_day ON mind_entries (day);
   `,
+  `
+  CREATE TABLE daily_steps (
+    day TEXT PRIMARY KEY NOT NULL,
+    steps INTEGER NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  `,
 ];
 
 export async function migrateDb(db: SQLiteDatabase) {

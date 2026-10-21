@@ -173,8 +173,8 @@ function Session({ meditation }: { meditation: Meditation }) {
             <Svg width={RING_SIZE} height={RING_SIZE} style={styles.ring}>
               <Defs>
                 <LinearGradient id="session-ring" x1="0" y1="0" x2="1" y2="1">
-                  <Stop offset="0" stopColor={theme.calm} />
-                  <Stop offset="1" stopColor={theme.calmEnd} />
+                  <Stop offset="0" stopColor={theme.sky} />
+                  <Stop offset="1" stopColor={theme.skyEnd} />
                 </LinearGradient>
               </Defs>
               <Circle
@@ -225,7 +225,9 @@ function Session({ meditation }: { meditation: Meditation }) {
           </View>
 
           <View style={styles.clock}>
-            <ThemedText style={styles.time}>{formatClock(remaining)}</ThemedText>
+            <ThemedText style={[styles.time, { color: theme.skyText }]}>
+              {formatClock(remaining)}
+            </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {done ? 'Session complete' : `remaining of ${formatClock(total)}`}
             </ThemedText>

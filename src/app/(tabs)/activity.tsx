@@ -3,6 +3,7 @@ import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { Icon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
 import { TipCard } from '@/components/tip-card';
 import { Card, CardTitle, Chip, IconButton, IconTile, PlayButton, Screen } from '@/components/ui';
@@ -135,7 +136,7 @@ function WorkoutCard({ type }: { type: WorkoutType }) {
   return (
     <Card accent={type.color} style={styles.workoutCard}>
       <View style={styles.workoutTop}>
-        <SymbolView name={type.icon} size={52} tintColor={accent} />
+        <Icon name={type.icon} size={52} color={accent} />
         <PlayButton
           label={`Start ${type.name}`}
           color={type.color}

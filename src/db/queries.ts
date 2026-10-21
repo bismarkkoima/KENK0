@@ -33,6 +33,9 @@ export type Goals = {
   exerciseMinutes: number;
   /** Used to estimate workout calories. */
   weightKg: number;
+  steps: number;
+  /** Workouts per week. */
+  weeklyWorkouts: number;
 };
 
 export const DEFAULT_GOALS: Goals = {
@@ -45,6 +48,8 @@ export const DEFAULT_GOALS: Goals = {
   moveCalories: 400,
   exerciseMinutes: 30,
   weightKg: 70,
+  steps: 8000,
+  weeklyWorkouts: 3,
 };
 
 export type DaySummary = Totals & {
@@ -58,6 +63,9 @@ export type DaySummary = Totals & {
   activeCalories: number;
   exerciseMinutes: number;
   workouts: number;
+  /** Phone-recorded steps, or 0 when unknown. */
+  steps: number;
+  distanceKm: number;
 };
 
 export type MoodCheckin = { day: string; mood: number; note: string };
@@ -201,6 +209,29 @@ export async function deleteWorkout(db: SQLiteDatabase, id: number) {
   await db.runAsync('DELETE FROM workouts WHERE id = ?', id);
 }
 
+/** Every workout between two days (inclusive), oldest first — for pattern analysis. */
+export function getWorkoutsBetween(db: SQLiteDatabase, from: string, to: string) {
+  return db.getAllAsync<Workout>(
+    'SELECT * FROM workouts WHERE day BETWEEN ? AND ? ORDER BY started_at',
+    from,
+    to,
+  );
+}
+
+// --- Steps -----------------------------------------------------------------
+
+/** Remembers a day's step total; phones only keep a few days of step history themselves. */
+export async function saveDailySteps(db: SQLiteDatabase, day: string, steps: number) {
+  await db.runAsync(
+    `INSERT INTO daily_steps (day, steps, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(day) DO UPDATE SET steps = MAX(steps, excluded.steps),
+       updated_at = excluded.updated_at`,
+    day,
+    steps,
+    new Date().toISOString(),
+  );
+}
+
 // --- Mind entries ----------------------------------------------------------
 
 export async function addMindEntry(db: SQLiteDatabase, e: NewMindEntry) {
@@ -281,12 +312,20 @@ export async function getDaySummaries(
     calories: number;
     seconds: number;
     count: number;
+    km: number;
   }>(
-    `SELECT day, SUM(calories) AS calories, SUM(duration_sec) AS seconds, COUNT(*) AS count
+    `SELECT day, SUM(calories) AS calories, SUM(duration_sec) AS seconds, COUNT(*) AS count,
+            SUM(COALESCE(distance_km, 0)) AS km
      FROM workouts WHERE day BETWEEN ? AND ? GROUP BY day`,
     from,
     to,
   );
+  const stepRows = await db.getAllAsync<{ day: string; steps: number }>(
+    'SELECT day, steps FROM daily_steps WHERE day BETWEEN ? AND ?',
+    from,
+    to,
+  );
+  const steps = new Map(stepRows.map((r) => [r.day, r.steps]));
 
   const meals = new Map(mealRows.map((r) => [r.day, r]));
   const meditation = new Map(meditationRows.map((r) => [r.day, r.minutes]));
@@ -311,6 +350,8 @@ export async function getDaySummaries(
       activeCalories: workouts.get(day)?.calories ?? 0,
       exerciseMinutes: (workouts.get(day)?.seconds ?? 0) / 60,
       workouts: workouts.get(day)?.count ?? 0,
+      steps: steps.get(day) ?? 0,
+      distanceKm: workouts.get(day)?.km ?? 0,
     });
   }
   return result;

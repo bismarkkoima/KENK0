@@ -17,6 +17,8 @@ const FIELDS: { key: keyof Goals; label: string }[] = [
   { key: 'waterMl', label: 'Water (ml / day)' },
   { key: 'moveCalories', label: 'Move — active calories (kcal / day)' },
   { key: 'exerciseMinutes', label: 'Exercise (min / day)' },
+  { key: 'steps', label: 'Steps (per day)' },
+  { key: 'weeklyWorkouts', label: 'Workouts (per week)' },
   { key: 'weightKg', label: 'Body weight (kg) — for calorie estimates' },
 ];
 

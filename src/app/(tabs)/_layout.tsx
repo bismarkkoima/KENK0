@@ -1,4 +1,6 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { NativeTabs } from 'expo-router/native-tabs';
+import { Platform } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 
@@ -18,7 +20,12 @@ export default function TabsLayout() {
 
       <NativeTabs.Trigger name="activity">
         <NativeTabs.Trigger.Label>Activity</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="figure.run" md="directions_run" />
+        {/* Kenko's own runner figure; the web tab bar shows labels only. */}
+        {Platform.OS !== 'web' && (
+          <NativeTabs.Trigger.Icon
+            src={<NativeTabs.Trigger.VectorIcon family={MaterialCommunityIcons} name="run-fast" />}
+          />
+        )}
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="food">
@@ -32,7 +39,7 @@ export default function TabsLayout() {
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="progress">
-        <NativeTabs.Trigger.Label>Progress</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Trends</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="chart.bar.fill" md="insights" />
       </NativeTabs.Trigger>
     </NativeTabs>
