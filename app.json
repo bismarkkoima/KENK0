@@ -49,7 +49,13 @@
           "recordAudioAndroid": false
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Kenko reads your step count to show daily activity on your Summary."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

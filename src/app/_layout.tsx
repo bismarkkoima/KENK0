@@ -37,6 +37,15 @@ export default function RootLayout() {
           <Stack.Screen name="goals" options={{ presentation: 'modal', title: 'Your goals' }} />
           <Stack.Screen name="reminders" options={{ presentation: 'modal', title: 'Reminders' }} />
           <Stack.Screen
+            name="log-workout"
+            options={{ presentation: 'modal', title: 'Log a workout' }}
+          />
+          <Stack.Screen name="mind-entry" options={{ presentation: 'modal', title: 'Check-in' }} />
+          <Stack.Screen
+            name="workout/[type]"
+            options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }}
+          />
+          <Stack.Screen
             name="scan"
             options={{ presentation: 'fullScreenModal', headerShown: false }}
           />

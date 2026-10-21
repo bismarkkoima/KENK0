@@ -49,6 +49,34 @@ const MIGRATIONS: string[] = [
     updated_at TEXT NOT NULL
   );
   `,
+  `
+  CREATE TABLE workouts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day TEXT NOT NULL,
+    type TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    duration_sec INTEGER NOT NULL,
+    calories REAL NOT NULL,
+    distance_km REAL,
+    effort INTEGER NOT NULL DEFAULT 3,
+    note TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX workouts_day ON workouts (day);
+
+  CREATE TABLE mind_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    mood INTEGER NOT NULL,
+    stress INTEGER NOT NULL,
+    energy INTEGER NOT NULL,
+    sleep INTEGER NOT NULL,
+    emotions TEXT NOT NULL DEFAULT '[]',
+    journal TEXT NOT NULL DEFAULT '',
+    gratitude TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX mind_entries_day ON mind_entries (day);
+  `,
 ];
 
 export async function migrateDb(db: SQLiteDatabase) {

@@ -4,7 +4,17 @@ import { Fonts, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
-  type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
+  type?:
+    | 'default'
+    | 'title'
+    | 'small'
+    | 'smallBold'
+    | 'subtitle'
+    | 'heading'
+    | 'display'
+    | 'link'
+    | 'linkPrimary'
+    | 'code';
   themeColor?: ThemeColor;
 };
 
@@ -35,11 +45,30 @@ const styles = StyleSheet.create({
     fontWeight: 600,
     lineHeight: 52,
   },
+  /** Large page title, e.g. "Summary". */
   subtitle: {
-    fontSize: 34,
-    lineHeight: 42,
+    fontFamily: Fonts.rounded,
+    fontSize: 38,
+    lineHeight: 44,
     fontWeight: 800,
     letterSpacing: -0.8,
+  },
+  /** Card title, e.g. "Activity Ring". */
+  heading: {
+    fontFamily: Fonts.rounded,
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: 700,
+    letterSpacing: -0.3,
+  },
+  /** Big colored metric, e.g. "0/120 CAL". */
+  display: {
+    fontFamily: Fonts.rounded,
+    fontSize: 34,
+    lineHeight: 40,
+    fontWeight: 700,
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
   },
   link: {
     lineHeight: 30,

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Card, Field, ProgressBar } from '@/components/ui';
+import { Card, CardTitle, Field, ProgressBar } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import type { MoodCheckin } from '@/db/queries';
 import { useTheme } from '@/hooks/use-theme';
@@ -33,15 +33,19 @@ export function WaterCard({
   const theme = useTheme();
   return (
     <Card>
+      <CardTitle>Hydration</CardTitle>
       <View style={styles.between}>
-        <ThemedText>
-          {Math.round(ml)} / {goal} ml
+        <ThemedText type="display" style={{ color: theme.water }}>
+          {Math.round(ml)}
+          <ThemedText type="heading" style={{ color: theme.water }}>
+            /{goal} ML
+          </ThemedText>
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           {ml >= goal ? 'Hydrated 💧' : `${Math.ceil((goal - ml) / 250)} glasses to go`}
         </ThemedText>
       </View>
-      <ProgressBar value={ml} max={goal} color="water" />
+      <ProgressBar value={ml} max={goal} color="water" height={10} />
       <View style={styles.buttons}>
         {[250, 500].map((amount) => (
           <Pressable
@@ -84,6 +88,7 @@ export function MoodCard({
 
   return (
     <Card>
+      <CardTitle>Mood</CardTitle>
       <ThemedText type="small" themeColor="textSecondary">
         {checkin ? 'Your check-in today — tap to change' : 'How are you feeling today?'}
       </ThemedText>

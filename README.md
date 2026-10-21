@@ -1,19 +1,27 @@
 # Kenko — health companion
 
 Kenko (健康, "health") is a mobile health companion built with Expo / React Native.
-It brings three habits into one place:
+It brings movement, food and mental wellbeing into one place, with an Apple Fitness–style
+design (bold rounded type, neon accents, activity rings) in light and dark mode.
 
+- **Summary** — Activity rings (Move, Exercise, Mindful), today's step count with an hourly
+  chart (iPhone), mood check-in, nutrition, a suggested meditation and water.
+- **Activity & sports** — start a live workout (walk, run, cycle, HIIT, swimming, football,
+  basketball, tennis, strength, yoga, dance…) with a big timer and live calorie estimate, or log
+  one afterwards. Calories are estimated from the activity's MET value, time, effort and your
+  weight.
 - **Meal tracking** — log meals by breakfast / lunch / dinner / snack, scan a product barcode
   or search foods from [Open Food Facts](https://world.openfoodfacts.org) with portion
   scaling, or enter calories and macros manually. Re-log recent foods in one tap.
-- **Meditation guides** — guided sessions (breathing, calm, focus, sleep) with an animated
-  breathing circle, spoken guidance (text-to-speech, can be muted), step-by-step prompts and
-  a session timer. Completed minutes are logged automatically.
-- **Water & mood** — one-tap water logging and a daily mood check-in with an optional note.
-- **Reminders** — optional daily notifications for meals, meditation and water.
-- **Progress analytics** — 7- and 30-day charts for calories, mood, mindful minutes and water,
-  activity streaks, and insights that link your mood to your habits (e.g. "your mood averages
-  4.7/5 on days you meditate, vs 2.3 on days you don't").
+- **Mind** — private mental-health check-ins (mood, stress, energy, sleep, emotions, journal
+  and gratitude), guided meditations with an animated breathing orb and spoken guidance, and
+  links to support if you're struggling.
+- **Water** — one-tap water logging.
+- **Reminders** — optional daily notifications for meals, workouts, check-ins, meditation and
+  water.
+- **Progress analytics** — 7- and 30-day charts for exercise, move calories, mood, stress,
+  mindful minutes, calories and water, streaks, and insights that link how you feel to your
+  habits (e.g. "your mood averages 4.7/5 on days you work out, vs 2.3 on days you don't").
 
 All data is stored **on the device** in SQLite. Nothing leaves the phone except food search
 queries and scanned barcodes sent to Open Food Facts. Camera images are never stored.
@@ -96,6 +104,9 @@ The app works in portrait mode and follows the phone's light / dark setting.
 | Barcode scanning | ✅ | ❌ | Camera permission + internet |
 | Meditation sessions | ✅ | ✅ | — |
 | Spoken guidance | ✅ | ⚠️ depends on browser | A text-to-speech voice (built into iOS and most Android phones; on Android it may need Google Speech Services) |
+| Workouts (live timer & manual log) | ✅ | ✅ | — |
+| Step count | iPhone only | ❌ | Motion & Fitness permission (Android needs Health Connect — on the roadmap) |
+| Mind check-ins & journal | ✅ | ✅ | — |
 | Water & mood tracking | ✅ | ✅ | — |
 | Reminders | ✅ | ❌ | Notification permission |
 
@@ -124,7 +135,10 @@ npx expo lint
 ```
 src/
   app/                    Expo Router screens (every file is a route)
-    (tabs)/               Today, Food, Meditate, Progress tabs
+    (tabs)/               Summary, Activity, Food, Mind, Progress tabs
+    workout/[type].tsx    Live workout timer
+    log-workout.tsx       Log a past workout
+    mind-entry.tsx        Mental-health check-in & journal
     add-meal.tsx          Log food modal (search + manual entry)
     scan.tsx              Barcode scanner
     goals.tsx             Daily targets modal
@@ -132,7 +146,10 @@ src/
     session/[id].tsx      Guided meditation player
   components/ui.tsx       Shared UI: Screen, Card, Button, Chip, Field, ProgressBar, Stat
   components/wellness-cards.tsx  Water and mood cards
+  components/tip-card.tsx Dismissible hint cards
   data/meditations.ts     Built-in meditation library (scripts + breathing patterns)
+  data/workouts.ts        Workout types, MET values and calorie estimates
+  data/mind.ts            Emotions, check-in scales and journal prompts
   db/                     SQLite schema migrations and queries
   hooks/                  Theme and data-loading hooks
   lib/                    Dates, Open Food Facts client, reminders, insights
@@ -144,10 +161,15 @@ append a new migration to `src/db/migrations.ts` (never edit a shipped one).
 ## Roadmap
 
 - Recorded audio narration and ambient sounds for meditations (`expo-audio`)
-- Apple Health / Health Connect sync (steps, sleep, weight)
+- Apple Health / Health Connect sync (steps on Android, heart rate, sleep, weight)
+- GPS routes and pace for outdoor workouts
 - Optional accounts and cloud sync (e.g. Supabase)
 
 ## Disclaimer
 
-Kenko is a wellness tool, not a medical device, and does not give medical advice. Talk to a
-qualified professional before making significant changes to your diet or health routine.
+Kenko is a wellness tool, not a medical device, and does not give medical advice. Calorie
+figures are estimates. Talk to a qualified professional before making significant changes to
+your diet, exercise or health routine. The Mind tab is not a substitute for mental-health care —
+if you are struggling, contact a professional or a helpline (see
+[findahelpline.com](https://findahelpline.com)); in an emergency, call your local emergency
+number.

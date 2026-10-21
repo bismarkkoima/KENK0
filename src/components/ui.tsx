@@ -13,13 +13,14 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, G, LinearGradient, Stop } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
 import {
   BottomTabInset,
   Gradients,
   MaxContentWidth,
+  OnGradient,
   Radius,
   Spacing,
   WebTabBarHeight,
@@ -28,7 +29,9 @@ import {
 } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
-import { linearGradient, radialGlow } from '@/lib/style';
+import { linearGradient, radialGlow, withAlpha } from '@/lib/style';
+
+export type IconName = SymbolViewProps['name'];
 
 /**
  * Real backdrop blur on iOS and web. Android's blur needs a dedicated target view and is costly
@@ -36,7 +39,7 @@ import { linearGradient, radialGlow } from '@/lib/style';
  */
 const SUPPORTS_BLUR = Platform.OS === 'ios' || Platform.OS === 'web';
 
-/** Soft colored glows behind the content — the "aurora" that the glass panels frost. */
+/** Soft colored glows behind full-screen experiences like the meditation player. */
 export function AuroraBackground({ variant = 'default' }: { variant?: 'default' | 'calm' }) {
   const theme = useTheme();
   const [a, b, c] =
@@ -54,7 +57,7 @@ export function AuroraBackground({ variant = 'default' }: { variant?: 'default' 
   );
 }
 
-/** Scrollable page over the aurora background, with safe-area padding and a capped width. */
+/** Scrollable page with a large rounded title, safe-area padding and a capped width. */
 export function Screen({
   children,
   title,
@@ -63,40 +66,38 @@ export function Screen({
   tabs = true,
 }: PropsWithChildren<{ title?: string; subtitle?: string; right?: ReactNode; tabs?: boolean }>) {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
 
   return (
-    <View style={styles.fill}>
-      <AuroraBackground />
-      <ScrollView
-        style={styles.fill}
-        contentContainerStyle={[
-          styles.screenContent,
-          {
-            // Tab screens draw under the status bar (and, on web, under the top tab bar);
-            // stack screens already sit below a header.
-            paddingTop: (tabs ? insets.top + WebTabBarHeight : 0) + Spacing.three,
-            paddingBottom: insets.bottom + (tabs ? BottomTabInset : 0) + Spacing.five,
-          },
-        ]}
-        keyboardShouldPersistTaps="handled">
-        <View style={styles.column}>
-          {title && (
-            <View style={styles.header}>
-              <View style={styles.headerText}>
-                {subtitle && (
-                  <ThemedText type="smallBold" themeColor="textSecondary">
-                    {subtitle}
-                  </ThemedText>
-                )}
-                <ThemedText type="subtitle">{title}</ThemedText>
-              </View>
-              {right}
+    <ScrollView
+      style={{ backgroundColor: theme.background }}
+      contentContainerStyle={[
+        styles.screenContent,
+        {
+          // Tab screens draw under the status bar (and, on web, under the top tab bar);
+          // stack screens already sit below a header.
+          paddingTop: (tabs ? insets.top + WebTabBarHeight : 0) + Spacing.three,
+          paddingBottom: insets.bottom + (tabs ? BottomTabInset : 0) + Spacing.six,
+        },
+      ]}
+      keyboardShouldPersistTaps="handled">
+      <View style={styles.column}>
+        {title && (
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              {subtitle && (
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  {subtitle}
+                </ThemedText>
+              )}
+              <ThemedText type="subtitle">{title}</ThemedText>
             </View>
-          )}
-          {children}
-        </View>
-      </ScrollView>
-    </View>
+            {right && <View style={styles.headerRight}>{right}</View>}
+          </View>
+        )}
+        {children}
+      </View>
+    </ScrollView>
   );
 }
 
@@ -112,16 +113,7 @@ export function Glass({
   const fill = strong || !SUPPORTS_BLUR ? theme.glassStrong : theme.glass;
 
   return (
-    <View
-      style={[
-        styles.glass,
-        {
-          borderRadius: radius,
-          borderColor: theme.glassBorder,
-          boxShadow: `0 10px 30px ${theme.shadow}`,
-        },
-        style,
-      ]}>
+    <View style={[styles.glass, { borderRadius: radius, borderColor: theme.glassBorder }, style]}>
       <View style={[StyleSheet.absoluteFill, styles.clip, { borderRadius: radius }]}>
         {SUPPORTS_BLUR && (
           <BlurView
@@ -138,16 +130,49 @@ export function Glass({
   );
 }
 
-export function Card({ children, style }: PropsWithChildren<{ style?: StyleProp<ViewStyle> }>) {
-  return <Glass style={[styles.card, style]}>{children}</Glass>;
+/**
+ * Solid rounded card. Pass `accent` for the Fitness-style tinted card, whose background is a
+ * dim wash of the accent color.
+ */
+export function Card({
+  children,
+  style,
+  accent,
+}: PropsWithChildren<{ style?: StyleProp<ViewStyle>; accent?: GradientName }>) {
+  const theme = useTheme();
+  const scheme = useColorScheme();
+  const background = accent
+    ? withAlpha(theme[Gradients[accent][0]], scheme === 'dark' ? 0.13 : 0.14)
+    : theme.backgroundElement;
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: background },
+        !accent && scheme !== 'dark' && { boxShadow: `0 2px 12px ${theme.shadow}` },
+        style,
+      ]}>
+      {children}
+    </View>
+  );
+}
+
+/** Card heading row: bold rounded title with an optional trailing element. */
+export function CardTitle({ children, right }: PropsWithChildren<{ right?: ReactNode }>) {
+  return (
+    <View style={styles.cardTitle}>
+      <ThemedText type="heading" style={styles.flexShrink}>
+        {children}
+      </ThemedText>
+      {right}
+    </View>
+  );
 }
 
 export function SectionTitle({ children, right }: PropsWithChildren<{ right?: ReactNode }>) {
   return (
     <View style={styles.sectionTitle}>
-      <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionTitleText}>
-        {children}
-      </ThemedText>
+      <ThemedText type="heading">{children}</ThemedText>
       {right}
     </View>
   );
@@ -186,7 +211,11 @@ export function ProgressBar({
     <View
       style={[
         styles.track,
-        { height, borderRadius: height / 2, backgroundColor: theme.backgroundSelected },
+        {
+          height,
+          borderRadius: height / 2,
+          backgroundColor: withAlpha(theme[Gradients[color][0]], 0.18),
+        },
       ]}>
       {over ? (
         <View style={[styles.barFill, { width: '100%', backgroundColor: theme.danger }]} />
@@ -201,7 +230,9 @@ export function ProgressBar({
   );
 }
 
-/** Circular progress ring with a gradient stroke. Children render in the center. */
+type RingSpec = { progress: number; color: GradientName; warnOver?: boolean };
+
+/** Circular progress ring with a gradient stroke over a dim track of the same color. */
 export function Ring({
   size,
   stroke = 12,
@@ -209,54 +240,73 @@ export function Ring({
   color = 'tint',
   warnOver = false,
   children,
-}: PropsWithChildren<{
-  size: number;
-  stroke?: number;
-  /** 0–1; values above 1 render as a full ring. */
-  progress: number;
-  color?: GradientName;
-  warnOver?: boolean;
-}>) {
+}: PropsWithChildren<{ size: number; stroke?: number } & RingSpec>) {
+  return (
+    <Rings size={size} stroke={stroke} rings={[{ progress, color, warnOver }]}>
+      {children}
+    </Rings>
+  );
+}
+
+/** Concentric rings, outermost first — like Apple's Activity rings. */
+export function Rings({
+  size,
+  stroke = 12,
+  gap = 3,
+  rings,
+  children,
+}: PropsWithChildren<{ size: number; stroke?: number; gap?: number; rings: RingSpec[] }>) {
   const theme = useTheme();
-  const r = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * r;
-  const clamped = Math.max(0, Math.min(progress, 1));
-  const [from, to] = Gradients[color];
-  const over = warnOver && progress > 1;
   // SVG gradient ids are document-wide on web, so each ring needs its own.
-  const id = `ring-${useId().replace(/[^a-zA-Z0-9-]/g, '')}`;
+  const baseId = `ring-${useId().replace(/[^a-zA-Z0-9-]/g, '')}`;
+  const c = size / 2;
 
   return (
     <View style={{ width: size, height: size }}>
       <Svg width={size} height={size} style={styles.ringSvg}>
         <Defs>
-          <LinearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={over ? theme.danger : theme[from]} />
-            <Stop offset="1" stopColor={over ? theme.danger : theme[to]} />
-          </LinearGradient>
+          {rings.map((ring, i) => {
+            const [from, to] = Gradients[ring.color];
+            const over = ring.warnOver && ring.progress > 1;
+            return (
+              <LinearGradient key={i} id={`${baseId}-${i}`} x1="0" y1="0" x2="1" y2="1">
+                <Stop offset="0" stopColor={over ? theme.danger : theme[from]} />
+                <Stop offset="1" stopColor={over ? theme.danger : theme[to]} />
+              </LinearGradient>
+            );
+          })}
         </Defs>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          stroke={theme.backgroundSelected}
-          strokeWidth={stroke}
-          fill="none"
-        />
-        {clamped > 0 && (
-          <Circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            stroke={`url(#${id})`}
-            strokeWidth={stroke}
-            strokeLinecap="round"
-            fill="none"
-            strokeDasharray={`${circumference} ${circumference}`}
-            strokeDashoffset={circumference * (1 - clamped)}
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          />
-        )}
+        {rings.map((ring, i) => {
+          const r = c - stroke / 2 - i * (stroke + gap);
+          const circumference = 2 * Math.PI * r;
+          const clamped = Math.max(0, Math.min(ring.progress, 1));
+          return (
+            <G key={i}>
+              <Circle
+                cx={c}
+                cy={c}
+                r={r}
+                stroke={withAlpha(theme[Gradients[ring.color][0]], 0.22)}
+                strokeWidth={stroke}
+                fill="none"
+              />
+              {clamped > 0 && (
+                <Circle
+                  cx={c}
+                  cy={c}
+                  r={r}
+                  stroke={`url(#${baseId}-${i})`}
+                  strokeWidth={stroke}
+                  strokeLinecap="round"
+                  fill="none"
+                  strokeDasharray={`${circumference} ${circumference}`}
+                  strokeDashoffset={circumference * (1 - clamped)}
+                  transform={`rotate(-90 ${c} ${c})`}
+                />
+              )}
+            </G>
+          );
+        })}
       </Svg>
       <View style={[StyleSheet.absoluteFill, styles.center]}>{children}</View>
     </View>
@@ -276,11 +326,11 @@ export function Button({
   variant?: 'primary' | 'secondary';
   color?: GradientName;
   disabled?: boolean;
-  icon?: SymbolViewProps['name'];
+  icon?: IconName;
 }) {
   const theme = useTheme();
   const primary = variant === 'primary';
-  const textColor = primary ? '#ffffff' : theme.text;
+  const textColor = primary ? OnGradient[color] : theme.text;
   const content = (
     <View style={styles.buttonContent}>
       {icon && <SymbolView name={icon} size={18} tintColor={textColor} />}
@@ -297,24 +347,22 @@ export function Button({
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
-        { opacity: disabled ? 0.4 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+        { opacity: disabled ? 0.4 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
       ]}>
       {primary ? (
-        <GradientFill
-          name={color}
-          style={[styles.button, { boxShadow: `0 8px 20px ${theme[Gradients[color][0]]}55` }]}>
+        <GradientFill name={color} style={styles.button}>
           {content}
         </GradientFill>
       ) : (
-        <Glass radius={Radius.control} style={styles.button}>
+        <View style={[styles.button, { backgroundColor: theme.backgroundSelected }]}>
           {content}
-        </Glass>
+        </View>
       )}
     </Pressable>
   );
 }
 
-/** Round glass button holding a single icon. */
+/** Round button holding a single icon, like the Fitness header buttons. */
 export function IconButton({
   icon,
   label,
@@ -322,24 +370,89 @@ export function IconButton({
   size = 48,
   color,
 }: {
-  icon: SymbolViewProps['name'];
+  icon: IconName;
   label: string;
   onPress: () => void;
   size?: number;
   color?: ThemeColor;
 }) {
   const theme = useTheme();
+  const scheme = useColorScheme();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
       hitSlop={8}
-      style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.94 : 1 }] })}>
-      <Glass radius={size / 2} style={[styles.center, { width: size, height: size }]}>
-        <SymbolView name={icon} size={size * 0.42} tintColor={theme[color ?? 'text']} />
-      </Glass>
+      style={({ pressed }) => [
+        styles.center,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: scheme === 'dark' ? theme.backgroundSelected : theme.backgroundElement,
+          transform: [{ scale: pressed ? 0.92 : 1 }],
+        },
+        scheme !== 'dark' && { boxShadow: `0 2px 8px ${theme.shadow}` },
+      ]}>
+      <SymbolView name={icon} size={size * 0.44} tintColor={theme[color ?? 'text']} />
     </Pressable>
+  );
+}
+
+/** Big round accent button with a play (or other) glyph. */
+export function PlayButton({
+  label,
+  onPress,
+  color = 'tint',
+  size = 60,
+  icon = PLAY_ICON,
+}: {
+  label: string;
+  /** Omit when the button sits inside a larger pressable card; it then renders as a glyph. */
+  onPress?: () => void;
+  color?: GradientName;
+  size?: number;
+  icon?: IconName;
+}) {
+  const circle = (
+    <GradientFill
+      name={color}
+      style={[styles.center, { width: size, height: size, borderRadius: size / 2 }]}>
+      <SymbolView name={icon} size={size * 0.42} tintColor={OnGradient[color]} />
+    </GradientFill>
+  );
+  if (!onPress) return circle;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={8}
+      style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.92 : 1 }] })}>
+      {circle}
+    </Pressable>
+  );
+}
+
+export const PLAY_ICON: IconName = { ios: 'play.fill', android: 'play_arrow', web: 'play_arrow' };
+
+/** Small rounded square holding an icon on an accent fill. */
+export function IconTile({
+  icon,
+  color,
+  size = 44,
+}: {
+  icon: IconName;
+  color: GradientName;
+  size?: number;
+}) {
+  return (
+    <GradientFill
+      name={color}
+      style={[styles.center, { width: size, height: size, borderRadius: size * 0.32 }]}>
+      <SymbolView name={icon} size={size * 0.5} tintColor={OnGradient[color]} />
+    </GradientFill>
   );
 }
 
@@ -347,17 +460,14 @@ export function Chip({
   label,
   selected,
   onPress,
+  color = 'tint',
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
+  color?: GradientName;
 }) {
   const theme = useTheme();
-  const text = (
-    <ThemedText type="smallBold" style={{ color: selected ? '#ffffff' : theme.text }}>
-      {label}
-    </ThemedText>
-  );
   return (
     <Pressable
       accessibilityRole="button"
@@ -365,13 +475,15 @@ export function Chip({
       onPress={onPress}
       style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
       {selected ? (
-        <GradientFill name="tint" style={styles.chip}>
-          {text}
+        <GradientFill name={color} style={styles.chip}>
+          <ThemedText type="smallBold" style={{ color: OnGradient[color] }}>
+            {label}
+          </ThemedText>
         </GradientFill>
       ) : (
-        <Glass radius={Radius.pill} style={styles.chip}>
-          {text}
-        </Glass>
+        <View style={[styles.chip, { backgroundColor: theme.backgroundSelected }]}>
+          <ThemedText type="smallBold">{label}</ThemedText>
+        </View>
       )}
     </Pressable>
   );
@@ -391,11 +503,7 @@ export function Field({ label, ...props }: TextInputProps & { label?: string }) 
         {...props}
         style={[
           styles.input,
-          {
-            color: theme.text,
-            backgroundColor: theme.backgroundElement,
-            borderColor: theme.glassBorder,
-          },
+          { color: theme.text, backgroundColor: theme.backgroundSelected },
           props.style,
         ]}
       />
@@ -423,12 +531,12 @@ export function Stat({ label, value, unit }: { label: string; value: string; uni
 }
 
 const styles = StyleSheet.create({
-  fill: {
-    flex: 1,
-  },
   center: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  flexShrink: {
+    flexShrink: 1,
   },
   blob: {
     position: 'absolute',
@@ -460,12 +568,16 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: Spacing.one,
   },
   headerText: {
     flexShrink: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    gap: Spacing.two + 4,
   },
   glass: {
     borderWidth: StyleSheet.hairlineWidth,
@@ -482,20 +594,22 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   card: {
-    padding: Spacing.three + 2,
-    gap: Spacing.two + 2,
+    borderRadius: Radius.card,
+    padding: Spacing.four - 4,
+    gap: Spacing.three,
+  },
+  cardTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
   sectionTitle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: Spacing.two,
+    marginTop: Spacing.three,
     paddingHorizontal: Spacing.one,
-  },
-  sectionTitleText: {
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    fontSize: 12,
   },
   track: {
     width: '100%',
@@ -508,7 +622,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   button: {
-    minHeight: 52,
+    minHeight: 54,
     paddingHorizontal: Spacing.four,
     borderRadius: Radius.control,
     alignItems: 'center',
@@ -520,21 +634,23 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   buttonText: {
-    fontSize: 16,
-    letterSpacing: 0.2,
+    fontSize: 17,
+    letterSpacing: 0.1,
   },
   chip: {
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     borderRadius: Radius.pill,
   },
+  // Grows to share a row with other fields, but keeps its natural height when stacked.
   field: {
     gap: Spacing.one,
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 'auto',
   },
   input: {
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two + 6,
     fontSize: 16,

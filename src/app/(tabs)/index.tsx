@@ -3,17 +3,19 @@ import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { TipCard } from '@/components/tip-card';
 import {
-  Button,
   Card,
+  CardTitle,
   GradientFill,
   IconButton,
+  PlayButton,
   Ring,
+  Rings,
   Screen,
-  SectionTitle,
 } from '@/components/ui';
 import { MoodCard, WaterCard } from '@/components/wellness-cards';
-import { Spacing, type GradientName } from '@/constants/theme';
+import { Fonts, OnGradient, Spacing, type GradientName } from '@/constants/theme';
 import { getMeditation, MEDITATIONS } from '@/data/meditations';
 import {
   getDaySummaries,
@@ -25,12 +27,15 @@ import {
   undoLastWater,
 } from '@/db/queries';
 import { useFocusedQuery } from '@/hooks/use-focused-query';
+import { useTodaySteps, type StepData } from '@/hooks/use-steps';
 import { useTheme } from '@/hooks/use-theme';
 import { greeting, toDayKey } from '@/lib/dates';
 import { radialGlow } from '@/lib/style';
 
-export default function TodayScreen() {
+export default function SummaryScreen() {
+  const theme = useTheme();
   const today = toDayKey();
+  const steps = useTodaySteps();
   const { data, db, reload } = useFocusedQuery(async (db) => {
     const [summary] = await getDaySummaries(db, today, today);
     return {
@@ -41,68 +46,87 @@ export default function TodayScreen() {
     };
   }, today);
 
-  if (!data) return <Screen title="Today" />;
+  if (!data) return <Screen title="Summary" />;
   const { summary, goals, streak, checkin } = data;
-  const remaining = Math.round(goals.calories - summary.calories);
-  const suggestion = suggestMeditation();
+  const caloriesLeft = Math.round(goals.calories - summary.calories);
 
   return (
     <Screen
-      title="Today"
+      title="Summary"
       subtitle={greeting()}
       right={
-        <View style={styles.links}>
+        <>
           <IconButton
             icon={{ ios: 'bell.fill', android: 'notifications', web: 'notifications' }}
             label="Reminders"
-            size={42}
             onPress={() => router.push('/reminders')}
           />
           <IconButton
             icon={{ ios: 'target', android: 'track_changes', web: 'track_changes' }}
             label="Goals"
-            size={42}
             onPress={() => router.push('/goals')}
           />
-        </View>
+        </>
       }>
-      <Card style={styles.hero}>
-        <Ring size={156} stroke={14} progress={summary.calories / goals.calories} warnOver>
-          <ThemedText style={styles.heroValue}>{Math.abs(remaining)}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {remaining >= 0 ? 'kcal left' : 'kcal over'}
-          </ThemedText>
-        </Ring>
-        <View style={styles.heroStats}>
-          <HeroStat
-            icon={{ ios: 'fork.knife', android: 'restaurant', web: 'restaurant' }}
-            gradient="tint"
-            label="Eaten"
-            value={`${Math.round(summary.calories)}`}
-            unit="kcal"
+      <TipCard
+        id="summary-intro"
+        icon={{ ios: 'circle.circle', android: 'donut_large', web: 'donut_large' }}
+        title="Close your rings"
+        body="Move fills with calories from workouts, Exercise with workout minutes and Mindful with meditation. Change any target with the goals button above."
+      />
+
+      <Card>
+        <CardTitle
+          right={
+            streak > 0 && (
+              <View style={[styles.streak, { backgroundColor: theme.backgroundSelected }]}>
+                <ThemedText type="smallBold">🔥 {streak}</ThemedText>
+              </View>
+            )
+          }>
+          Activity Rings
+        </CardTitle>
+        <View style={styles.ringsRow}>
+          <Rings
+            size={150}
+            stroke={18}
+            gap={3}
+            rings={[
+              { progress: summary.activeCalories / goals.moveCalories, color: 'move' },
+              { progress: summary.exerciseMinutes / goals.exerciseMinutes, color: 'tint' },
+              { progress: summary.meditationMinutes / goals.meditationMinutes, color: 'mind' },
+            ]}
           />
-          <HeroStat
-            icon={{
-              ios: 'flame.fill',
-              android: 'local_fire_department',
-              web: 'local_fire_department',
-            }}
-            gradient="warm"
-            label="Streak"
-            value={String(streak)}
-            unit={streak === 1 ? 'day' : 'days'}
-          />
-          <HeroStat
-            icon={{ ios: 'leaf.fill', android: 'self_improvement', web: 'self_improvement' }}
-            gradient="calm"
-            label="Mindful"
-            value={String(Math.round(summary.meditationMinutes))}
-            unit="min"
-          />
+          <View style={styles.ringLegend}>
+            <RingStat
+              label="Move"
+              value={Math.round(summary.activeCalories)}
+              goal={goals.moveCalories}
+              unit="CAL"
+              color="move"
+            />
+            <RingStat
+              label="Exercise"
+              value={Math.round(summary.exerciseMinutes)}
+              goal={goals.exerciseMinutes}
+              unit="MIN"
+              color="tint"
+            />
+            <RingStat
+              label="Mindful"
+              value={Math.round(summary.meditationMinutes)}
+              goal={goals.meditationMinutes}
+              unit="MIN"
+              color="mind"
+            />
+          </View>
         </View>
       </Card>
 
-      <SectionTitle>Check-in</SectionTitle>
+      {steps && <StepsCard steps={steps} />}
+
+      <WorkoutPrompt />
+
       <MoodCard
         key={checkin ? 'checked-in' : 'new'}
         checkin={checkin}
@@ -113,21 +137,36 @@ export default function TodayScreen() {
         }}
       />
 
-      <SectionTitle>Macros</SectionTitle>
-      <Card style={styles.macros}>
-        <MacroRing label="Protein" value={summary.protein} goal={goals.protein} color="tint" />
-        <MacroRing label="Carbs" value={summary.carbs} goal={goals.carbs} color="warm" />
-        <MacroRing label="Fat" value={summary.fat} goal={goals.fat} color="water" />
-      </Card>
+      <Pressable onPress={() => router.push('/food')} accessibilityRole="button">
+        <Card>
+          <CardTitle right={<Chevron />}>Nutrition</CardTitle>
+          <View style={styles.nutritionRow}>
+            <View style={styles.flex}>
+              <ThemedText type="smallBold">{caloriesLeft >= 0 ? 'Left today' : 'Over'}</ThemedText>
+              <ThemedText
+                type="display"
+                style={{ color: caloriesLeft >= 0 ? theme.tintText : theme.danger }}>
+                {Math.abs(caloriesLeft)}
+                <ThemedText
+                  type="heading"
+                  style={{ color: caloriesLeft >= 0 ? theme.tintText : theme.danger }}>
+                  {' '}
+                  KCAL
+                </ThemedText>
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {Math.round(summary.calories)} eaten of {goals.calories}
+              </ThemedText>
+            </View>
+            <MacroRing label="P" value={summary.protein} goal={goals.protein} color="tint" />
+            <MacroRing label="C" value={summary.carbs} goal={goals.carbs} color="warm" />
+            <MacroRing label="F" value={summary.fat} goal={goals.fat} color="water" />
+          </View>
+        </Card>
+      </Pressable>
 
-      <SectionTitle>Mindfulness</SectionTitle>
-      <MindfulCard
-        minutes={summary.meditationMinutes}
-        goal={goals.meditationMinutes}
-        suggestion={suggestion}
-      />
+      <MindfulCard suggestionId={suggestMeditationId()} />
 
-      <SectionTitle>Hydration</SectionTitle>
       <WaterCard
         ml={summary.waterMl}
         goal={goals.waterMl}
@@ -140,49 +179,98 @@ export default function TodayScreen() {
           reload();
         }}
       />
-
-      <Button
-        label="Log a meal"
-        icon={{ ios: 'plus', android: 'add', web: 'add' }}
-        onPress={() => router.push('/add-meal')}
-      />
     </Screen>
   );
 }
 
-type Icon = React.ComponentProps<typeof SymbolView>['name'];
-
-function HeroStat({
-  icon,
-  gradient,
+function RingStat({
   label,
   value,
+  goal,
   unit,
+  color,
 }: {
-  icon: Icon;
-  gradient: GradientName;
   label: string;
-  value: string;
+  value: number;
+  goal: number;
   unit: string;
+  color: GradientName;
 }) {
+  const theme = useTheme();
+  const c = theme[color === 'tint' ? 'tintText' : color];
   return (
-    <View style={styles.heroStat}>
-      <GradientFill name={gradient} style={styles.heroIcon}>
-        <SymbolView name={icon} size={16} tintColor="#ffffff" />
-      </GradientFill>
+    <View>
+      <ThemedText type="smallBold">{label}</ThemedText>
+      <ThemedText style={[styles.ringValue, { color: c }]}>
+        {value}/{goal}
+        <ThemedText style={[styles.ringUnit, { color: c }]}>{unit}</ThemedText>
+      </ThemedText>
+    </View>
+  );
+}
+
+function StepsCard({ steps }: { steps: StepData }) {
+  const theme = useTheme();
+  const max = Math.max(...steps.hourly, 1);
+  return (
+    <Card>
+      <CardTitle>Step Count</CardTitle>
       <View>
-        <ThemedText type="small" themeColor="textSecondary">
-          {label}
-        </ThemedText>
-        <ThemedText style={styles.heroStatValue}>
-          {value}
-          <ThemedText type="small" themeColor="textSecondary">
-            {' '}
-            {unit}
-          </ThemedText>
+        <ThemedText type="smallBold">Today</ThemedText>
+        <ThemedText type="display" style={{ color: theme.calm }}>
+          {steps.total.toLocaleString()}
         </ThemedText>
       </View>
-    </View>
+      <View style={styles.hourly}>
+        {steps.hourly.map((v, h) => (
+          <View key={h} style={styles.hourSlot}>
+            <View
+              style={[
+                styles.hourGrid,
+                { borderColor: h % 6 === 0 ? theme.textSecondary : theme.backgroundSelected },
+              ]}
+            />
+            {v > 0 && (
+              <View
+                style={{
+                  height: `${Math.max((v / max) * 100, 6)}%`,
+                  width: 5,
+                  borderRadius: 3,
+                  backgroundColor: theme.calm,
+                }}
+              />
+            )}
+          </View>
+        ))}
+      </View>
+      <View style={styles.hourLabels}>
+        {['00', '06', '12', '18'].map((l) => (
+          <ThemedText key={l} type="small" themeColor="textSecondary" style={styles.hourLabel}>
+            {l}
+          </ThemedText>
+        ))}
+      </View>
+    </Card>
+  );
+}
+
+function WorkoutPrompt() {
+  const theme = useTheme();
+  return (
+    <Card accent="tint" style={styles.workout}>
+      <View style={styles.workoutTop}>
+        <SymbolView
+          name={{ ios: 'figure.run', android: 'directions_run', web: 'directions_run' }}
+          size={46}
+          tintColor={theme.tintText}
+        />
+        <PlayButton label="Start a workout" onPress={() => router.push('/activity')} />
+      </View>
+      <ThemedText style={styles.workoutTitle}>Start a Workout</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        Walk, run, cycle, football, strength, yoga and more.
+      </ThemedText>
+    </Card>
   );
 }
 
@@ -198,53 +286,39 @@ function MacroRing({
   color: GradientName;
 }) {
   return (
-    <View style={styles.macro}>
-      <Ring size={84} stroke={9} progress={value / goal} color={color} warnOver>
-        <ThemedText style={styles.macroValue}>{Math.round(value)}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.macroUnit}>
-          / {goal} g
-        </ThemedText>
-      </Ring>
-      <ThemedText type="smallBold">{label}</ThemedText>
-    </View>
+    <Ring size={52} stroke={6} progress={value / goal} color={color} warnOver>
+      <ThemedText type="smallBold" style={styles.macroLabel}>
+        {label}
+      </ThemedText>
+    </Ring>
   );
 }
 
-function MindfulCard({
-  minutes,
-  goal,
-  suggestion,
-}: {
-  minutes: number;
-  goal: number;
-  suggestion: (typeof MEDITATIONS)[number];
-}) {
-  const theme = useTheme();
-  const reached = minutes >= goal;
+function MindfulCard({ suggestionId }: { suggestionId: string }) {
+  const suggestion = getMeditation(suggestionId) ?? MEDITATIONS[0];
+  const open = () => router.push({ pathname: '/session/[id]', params: { id: suggestion.id } });
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Start ${suggestion.title}`}
-      onPress={() => router.push({ pathname: '/session/[id]', params: { id: suggestion.id } })}
+      onPress={open}
       style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}>
-      <GradientFill
-        name="calm"
-        style={[styles.mindful, { boxShadow: `0 14px 34px ${theme.calm}55` }]}>
+      <GradientFill name="calm" style={styles.mindful}>
         <View style={[styles.mindfulGlow, radialGlow('rgba(255,255,255,0.35)')]} />
-        <View style={styles.mindfulText}>
+        <View style={styles.flex}>
           <ThemedText type="smallBold" style={styles.mindfulEyebrow}>
-            {reached ? 'GOAL REACHED 🎉' : `${Math.round(minutes)} OF ${goal} MIN TODAY`}
+            SUGGESTED FOR NOW
           </ThemedText>
           <ThemedText style={styles.mindfulTitle}>{suggestion.title}</ThemedText>
           <ThemedText type="small" style={styles.mindfulSub}>
             {suggestion.minutes} min · {suggestion.description}
           </ThemedText>
         </View>
-        <View style={styles.playButton}>
+        <View style={styles.playWhite}>
           <SymbolView
             name={{ ios: 'play.fill', android: 'play_arrow', web: 'play_arrow' }}
             size={24}
-            tintColor={theme.calm}
+            tintColor="#5B48E8"
           />
         </View>
       </GradientFill>
@@ -252,74 +326,107 @@ function MindfulCard({
   );
 }
 
+function Chevron() {
+  const theme = useTheme();
+  return (
+    <View style={[styles.chevron, { backgroundColor: theme.backgroundSelected }]}>
+      <SymbolView
+        name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+        size={14}
+        weight="bold"
+        tintColor={theme.textSecondary}
+      />
+    </View>
+  );
+}
+
 /** Pick a session that fits the time of day. */
-function suggestMeditation() {
+function suggestMeditationId() {
   const hour = new Date().getHours();
-  const id = hour < 11 ? 'morning-reset' : hour >= 21 ? 'sleep-wind-down' : 'box-breathing';
-  return getMeditation(id) ?? MEDITATIONS[0];
+  return hour < 11 ? 'morning-reset' : hour >= 21 ? 'sleep-wind-down' : 'box-breathing';
 }
 
 const styles = StyleSheet.create({
-  links: {
-    flexDirection: 'row',
-    gap: Spacing.two,
+  flex: {
+    flex: 1,
   },
-  hero: {
+  streak: {
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two + 2,
+    borderRadius: 999,
+  },
+  ringsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.four,
-    paddingVertical: Spacing.four,
   },
-  heroValue: {
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: 800,
-    letterSpacing: -1,
-    fontVariant: ['tabular-nums'],
-  },
-  heroStats: {
+  ringLegend: {
     flex: 1,
-    gap: Spacing.three,
+    gap: Spacing.two + 2,
   },
-  heroStat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two + 4,
-  },
-  heroIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroStatValue: {
-    fontSize: 18,
-    lineHeight: 22,
+  ringValue: {
+    fontFamily: Fonts.rounded,
+    fontSize: 22,
+    lineHeight: 27,
     fontWeight: 700,
     fontVariant: ['tabular-nums'],
   },
-  macros: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: Spacing.four,
+  ringUnit: {
+    fontFamily: Fonts.rounded,
+    fontSize: 14,
+    fontWeight: 700,
   },
-  macro: {
+  hourly: {
+    height: 70,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  hourSlot: {
+    flex: 1,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  hourGrid: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+  },
+  hourLabels: {
+    flexDirection: 'row',
+  },
+  hourLabel: {
+    flex: 1,
+    fontSize: 12,
+  },
+  workout: {
+    gap: Spacing.one,
+  },
+  workoutTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.two,
+  },
+  workoutTitle: {
+    fontFamily: Fonts.rounded,
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: 800,
+    letterSpacing: -0.5,
+  },
+  nutritionRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
   },
-  macroValue: {
-    fontSize: 18,
-    lineHeight: 22,
-    fontWeight: 800,
-    fontVariant: ['tabular-nums'],
-  },
-  macroUnit: {
-    fontSize: 11,
-    lineHeight: 14,
+  macroLabel: {
+    fontSize: 12,
   },
   mindful: {
-    borderRadius: 24,
+    borderRadius: 28,
     padding: Spacing.four,
     flexDirection: 'row',
     alignItems: 'center',
@@ -334,32 +441,34 @@ const styles = StyleSheet.create({
     height: 260,
     borderRadius: 130,
   },
-  mindfulText: {
-    flex: 1,
-    gap: Spacing.half,
-  },
   mindfulEyebrow: {
     color: 'rgba(255,255,255,0.8)',
     fontSize: 11,
     letterSpacing: 1.2,
   },
   mindfulTitle: {
-    color: '#ffffff',
-    fontSize: 22,
-    lineHeight: 28,
+    color: OnGradient.calm,
+    fontFamily: Fonts.rounded,
+    fontSize: 24,
+    lineHeight: 30,
     fontWeight: 800,
-    letterSpacing: -0.4,
   },
   mindfulSub: {
-    color: 'rgba(255,255,255,0.85)',
+    color: 'rgba(255,255,255,0.88)',
   },
-  playButton: {
+  playWhite: {
     width: 56,
     height: 56,
     borderRadius: 28,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 6px 16px rgba(0,0,0,0.18)',
+  },
+  chevron: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

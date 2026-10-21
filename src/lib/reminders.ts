@@ -5,7 +5,14 @@ import { Platform } from 'react-native';
 
 import { getSetting, saveSetting } from '@/db/queries';
 
-export type ReminderId = 'breakfast' | 'lunch' | 'dinner' | 'meditation' | 'water';
+export type ReminderId =
+  | 'breakfast'
+  | 'lunch'
+  | 'dinner'
+  | 'workout'
+  | 'checkin'
+  | 'meditation'
+  | 'water';
 
 export type Reminder = {
   id: ReminderId;
@@ -22,6 +29,16 @@ export const REMINDER_INFO: Record<ReminderId, { label: string; title: string; b
   },
   lunch: { label: 'Lunch', title: 'Lunch time 🥗', body: 'Take a moment to log your lunch.' },
   dinner: { label: 'Dinner', title: 'Dinner 🍽️', body: "Don't forget to log your dinner." },
+  workout: {
+    label: 'Workout',
+    title: 'Time to move 🏃',
+    body: 'A quick workout or walk will help close your rings today.',
+  },
+  checkin: {
+    label: 'Mind check-in',
+    title: 'How are you, really? 💭',
+    body: 'Take a minute to check in with how you feel.',
+  },
   meditation: {
     label: 'Meditation',
     title: 'Time to unwind 🍃',
@@ -38,6 +55,8 @@ export const DEFAULT_REMINDERS: Reminder[] = [
   { id: 'breakfast', enabled: false, hour: 8, minute: 0 },
   { id: 'lunch', enabled: false, hour: 12, minute: 30 },
   { id: 'dinner', enabled: false, hour: 18, minute: 30 },
+  { id: 'workout', enabled: false, hour: 17, minute: 30 },
+  { id: 'checkin', enabled: false, hour: 20, minute: 0 },
   { id: 'meditation', enabled: false, hour: 21, minute: 0 },
   { id: 'water', enabled: false, hour: 10, minute: 0 },
 ];

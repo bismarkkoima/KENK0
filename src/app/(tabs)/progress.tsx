@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Card, Chip, GradientFill, Screen, SectionTitle, Stat } from '@/components/ui';
+import { Card, CardTitle, Chip, GradientFill, Screen, Stat } from '@/components/ui';
 import { moodEmoji } from '@/components/wellness-cards';
 import { Spacing, type GradientName } from '@/constants/theme';
 import { getDaySummaries, getGoals, getStreak, type DaySummary } from '@/db/queries';
@@ -15,6 +15,7 @@ const RANGES = [7, 30] as const;
 
 export default function ProgressScreen() {
   const [range, setRange] = useState<(typeof RANGES)[number]>(7);
+  const theme = useTheme();
   const { data } = useFocusedQuery(async (db) => {
     const days = lastDays(range);
     return {
@@ -28,6 +29,15 @@ export default function ProgressScreen() {
   const { days, goals, streak } = data;
   const s = rangeStats(days, goals);
 
+  const avg = (pick: (d: DaySummary) => number | null) => {
+    const xs = days.flatMap((d) => {
+      const v = pick(d);
+      return v === null || v === 0 ? [] : [v];
+    });
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+  };
+  const avgStress = avg((d) => d.stress);
+
   return (
     <Screen title="Progress">
       <View style={styles.chips}>
@@ -38,8 +48,8 @@ export default function ProgressScreen() {
 
       <Card>
         <View style={styles.row}>
-          <Stat label="Streak" value={String(streak)} unit="days" />
-          <Stat label="Days logged" value={`${s.loggedDays}/${range}`} />
+          <Stat label="Streak" value={`🔥 ${streak}`} unit="days" />
+          <Stat label="Workouts" value={String(s.workouts)} />
           <Stat
             label="Mood"
             value={s.avgMood === null ? '–' : `${moodEmoji(s.avgMood)} ${s.avgMood.toFixed(1)}`}
@@ -47,61 +57,143 @@ export default function ProgressScreen() {
         </View>
       </Card>
 
-      <SectionTitle>Insights</SectionTitle>
       <Card>
+        <CardTitle>Insights</CardTitle>
         {buildInsights(days, goals, streak).map((text) => (
-          <ThemedText key={text} type="small">
-            • {text}
-          </ThemedText>
+          <View key={text} style={styles.insight}>
+            <View style={[styles.dot, { backgroundColor: theme.tintText }]} />
+            <ThemedText style={styles.flex}>{text}</ThemedText>
+          </View>
         ))}
       </Card>
 
-      <SectionTitle>Calories</SectionTitle>
-      <Card>
+      <MetricCard
+        title="Exercise"
+        value={Math.round(s.exerciseMinutes)}
+        unit="MIN"
+        caption={`Total · goal ${goals.exerciseMinutes} min a day, met on ${s.activeDays} of ${range} days`}
+        color="tint">
         <BarChart
           days={days}
-          pick={(d) => d.calories}
-          goal={goals.calories}
+          pick={(d) => d.exerciseMinutes}
+          goal={goals.exerciseMinutes}
           color="tint"
-          warnOver
         />
-        <ThemedText type="small" themeColor="textSecondary">
-          Average {Math.round(s.avgCalories)} kcal on logged days · goal {goals.calories}
-        </ThemedText>
-      </Card>
+      </MetricCard>
 
-      <SectionTitle>Mood</SectionTitle>
-      <Card>
+      <MetricCard
+        title="Move"
+        value={Math.round(days.reduce((sum, d) => sum + d.activeCalories, 0))}
+        unit="CAL"
+        caption={`Active calories from workouts · goal ${goals.moveCalories} a day`}
+        color="move">
+        <BarChart
+          days={days}
+          pick={(d) => d.activeCalories}
+          goal={goals.moveCalories}
+          color="move"
+        />
+      </MetricCard>
+
+      <MetricCard
+        title="Mood"
+        value={s.avgMood === null ? '–' : s.avgMood.toFixed(1)}
+        unit="/5"
+        caption={
+          s.checkinDays
+            ? `Average · checked in on ${s.checkinDays} of ${range} days`
+            : 'No check-ins yet — add one from Summary or Mind.'
+        }
+        color="warm">
         <BarChart days={days} pick={(d) => d.mood ?? 0} max={5} color="warm" />
-        <ThemedText type="small" themeColor="textSecondary">
-          {s.checkinDays
-            ? `Checked in on ${s.checkinDays} of ${range} days · 1 = low, 5 = great`
-            : 'No check-ins yet — add one from the Today tab.'}
-        </ThemedText>
-      </Card>
+      </MetricCard>
 
-      <SectionTitle>Meditation</SectionTitle>
-      <Card>
+      <MetricCard
+        title="Stress"
+        value={avgStress === null ? '–' : avgStress.toFixed(1)}
+        unit="/5"
+        caption={
+          avgStress === null
+            ? 'Log a check-in in the Mind tab to track stress.'
+            : 'Average from Mind check-ins · lower is calmer'
+        }
+        color="calm">
+        <BarChart days={days} pick={(d) => d.stress ?? 0} max={5} color="calm" />
+      </MetricCard>
+
+      <MetricCard
+        title="Mindful Minutes"
+        value={Math.round(s.totalMindful)}
+        unit="MIN"
+        caption={`Goal of ${goals.meditationMinutes} min met on ${s.mindfulDays} of ${range} days`}
+        color="mind">
         <BarChart
           days={days}
           pick={(d) => d.meditationMinutes}
           goal={goals.meditationMinutes}
-          color="calm"
+          color="mind"
         />
-        <ThemedText type="small" themeColor="textSecondary">
-          {Math.round(s.totalMindful)} mindful minutes · goal met on {s.mindfulDays} of {range} days
-        </ThemedText>
-      </Card>
+      </MetricCard>
 
-      <SectionTitle>Water</SectionTitle>
-      <Card>
+      <MetricCard
+        title="Calories Eaten"
+        value={Math.round(s.avgCalories)}
+        unit="KCAL"
+        caption={`Average on ${s.loggedDays} logged days · goal ${goals.calories}`}
+        color="warm">
+        <BarChart
+          days={days}
+          pick={(d) => d.calories}
+          goal={goals.calories}
+          color="warm"
+          warnOver
+        />
+      </MetricCard>
+
+      <MetricCard
+        title="Water"
+        value={Math.round(s.avgWater)}
+        unit="ML"
+        caption={`Average on days you logged · goal met on ${s.hydratedDays} of ${range} days`}
+        color="water">
         <BarChart days={days} pick={(d) => d.waterMl} goal={goals.waterMl} color="water" />
-        <ThemedText type="small" themeColor="textSecondary">
-          Average {Math.round(s.avgWater)} ml on days you logged · goal met on {s.hydratedDays} of{' '}
-          {range} days
-        </ThemedText>
-      </Card>
+      </MetricCard>
     </Screen>
+  );
+}
+
+function MetricCard({
+  title,
+  value,
+  unit,
+  caption,
+  color,
+  children,
+}: {
+  title: string;
+  value: number | string;
+  unit: string;
+  caption: string;
+  color: GradientName;
+  children: React.ReactNode;
+}) {
+  const theme = useTheme();
+  const c = theme[color === 'tint' ? 'tintText' : color];
+  return (
+    <Card>
+      <CardTitle>{title}</CardTitle>
+      <ThemedText type="display" style={{ color: c }}>
+        {value}
+        <ThemedText type="heading" style={{ color: c }}>
+          {' '}
+          {unit}
+        </ThemedText>
+      </ThemedText>
+      {children}
+      <ThemedText type="small" themeColor="textSecondary">
+        {caption}
+      </ThemedText>
+    </Card>
   );
 }
 
@@ -184,6 +276,20 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: Spacing.three,
+  },
+  flex: {
+    flex: 1,
+  },
+  insight: {
+    flexDirection: 'row',
+    gap: Spacing.two + 2,
+    alignItems: 'flex-start',
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 8,
   },
   chart: {
     height: 140,

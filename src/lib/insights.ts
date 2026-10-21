@@ -18,12 +18,17 @@ export type RangeStats = {
   hydratedDays: number;
   checkinDays: number;
   avgMood: number | null;
+  workouts: number;
+  exerciseMinutes: number;
+  activeDays: number;
+  avgStress: number | null;
 };
 
 export function rangeStats(days: DaySummary[], goals: Goals): RangeStats {
   const logged = days.filter((d) => d.calories > 0);
   const waterDays = days.filter((d) => d.waterMl > 0);
   const moods = days.flatMap((d) => (d.mood === null ? [] : [d.mood]));
+  const stress = days.flatMap((d) => (d.stress === null ? [] : [d.stress]));
   return {
     loggedDays: logged.length,
     avgCalories: average(logged.map((d) => d.calories)),
@@ -37,6 +42,10 @@ export function rangeStats(days: DaySummary[], goals: Goals): RangeStats {
     hydratedDays: days.filter((d) => d.waterMl >= goals.waterMl).length,
     checkinDays: moods.length,
     avgMood: moods.length ? average(moods) : null,
+    workouts: days.reduce((sum, d) => sum + d.workouts, 0),
+    exerciseMinutes: days.reduce((sum, d) => sum + d.exerciseMinutes, 0),
+    activeDays: days.filter((d) => d.exerciseMinutes >= goals.exerciseMinutes).length,
+    avgStress: stress.length ? average(stress) : null,
   };
 }
 
@@ -52,14 +61,27 @@ export function moodDifference(days: DaySummary[], metHabit: (d: DaySummary) => 
   return { withHabit: average(yes), without: average(no), diff: average(yes) - average(no) };
 }
 
+/** Like `moodDifference`, for average stress (where lower is better). */
+export function stressDifference(days: DaySummary[], metHabit: (d: DaySummary) => boolean) {
+  const withStress = days.filter((d) => d.stress !== null);
+  const yes = withStress.filter(metHabit).map((d) => d.stress!);
+  const no = withStress.filter((d) => !metHabit(d)).map((d) => d.stress!);
+  if (yes.length < MIN_DAYS_PER_GROUP || no.length < MIN_DAYS_PER_GROUP) return null;
+  return { withHabit: average(yes), without: average(no), diff: average(yes) - average(no) };
+}
+
 export function buildInsights(days: DaySummary[], goals: Goals, streak: number): string[] {
   const s = rangeStats(days, goals);
   const range = days.length;
   const anyActivity =
-    s.loggedDays + s.totalMindful + s.checkinDays + days.filter((d) => d.waterMl > 0).length;
+    s.loggedDays +
+    s.totalMindful +
+    s.checkinDays +
+    s.workouts +
+    days.filter((d) => d.waterMl > 0).length;
   if (anyActivity === 0) {
     return [
-      'Log a meal, a glass of water, a meditation or a mood check-in to start seeing trends.',
+      'Log a workout, a meal, a glass of water, a meditation or a check-in to start seeing trends.',
     ];
   }
 
@@ -67,6 +89,7 @@ export function buildInsights(days: DaySummary[], goals: Goals, streak: number):
 
   // Habit ↔ mood connections are the most motivating, so lead with them.
   const habits: { name: string; met: (d: DaySummary) => boolean }[] = [
+    { name: 'work out', met: (d) => d.workouts > 0 },
     { name: 'meditate', met: (d) => d.meditationMinutes >= goals.meditationMinutes },
     { name: 'hit your water goal', met: (d) => d.waterMl >= goals.waterMl },
     {
@@ -81,6 +104,27 @@ export function buildInsights(days: DaySummary[], goals: Goals, streak: number):
         `Your mood averages ${m.withHabit.toFixed(1)}/5 on days you ${h.name}, vs ${m.without.toFixed(1)} on days you don't.`,
       );
     }
+  }
+
+  // Same idea for stress, where lower is better.
+  const stressOnWorkoutDays = stressDifference(days, (d) => d.workouts > 0);
+  if (stressOnWorkoutDays && stressOnWorkoutDays.diff <= -MIN_MOOD_DIFFERENCE) {
+    out.push(
+      `Stress averages ${stressOnWorkoutDays.withHabit.toFixed(1)}/5 on days you work out, vs ${stressOnWorkoutDays.without.toFixed(1)} on rest days.`,
+    );
+  }
+
+  if (s.workouts === 0) {
+    out.push('No workouts yet this period — even a 10-minute walk fills your Exercise ring.');
+  } else {
+    out.push(
+      `${s.workouts} workout${s.workouts === 1 ? '' : 's'}, ${Math.round(s.exerciseMinutes)} active minutes — you hit your exercise goal on ${s.activeDays} of ${range} days.`,
+    );
+  }
+  if (s.avgStress !== null && s.avgStress >= 3.5) {
+    out.push(
+      'Your stress has been running high. Short breathing sessions and a walk outside are both proven to help.',
+    );
   }
 
   if (s.loggedDays > 0) {

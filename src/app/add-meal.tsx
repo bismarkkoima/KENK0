@@ -140,14 +140,14 @@ export default function AddMealScreen() {
             accessibilityLabel="Scan barcode"
             onPress={() => router.push({ pathname: '/scan', params: { day, mealType } })}
             style={[styles.scanButton, { backgroundColor: theme.tintSoft }]}>
-            <ThemedText type="smallBold" style={{ color: theme.tint }}>
+            <ThemedText type="smallBold" style={{ color: theme.tintText }}>
               Scan
             </ThemedText>
           </Pressable>
         )}
       </View>
 
-      {searching && <ActivityIndicator color={theme.tint} />}
+      {searching && <ActivityIndicator color={theme.tintText} />}
       {searchActive && searchError && (
         <ThemedText type="small" themeColor="textSecondary">
           {searchError}

@@ -28,6 +28,11 @@ export type Goals = {
   fat: number;
   meditationMinutes: number;
   waterMl: number;
+  /** Active calories burned in workouts. */
+  moveCalories: number;
+  exerciseMinutes: number;
+  /** Used to estimate workout calories. */
+  weightKg: number;
 };
 
 export const DEFAULT_GOALS: Goals = {
@@ -37,17 +42,55 @@ export const DEFAULT_GOALS: Goals = {
   fat: 70,
   meditationMinutes: 10,
   waterMl: 2000,
+  moveCalories: 400,
+  exerciseMinutes: 30,
+  weightKg: 70,
 };
 
 export type DaySummary = Totals & {
   day: string;
   meditationMinutes: number;
   waterMl: number;
-  /** 1 (low) – 5 (great), or null if no check-in that day. */
+  /** 1 (low) – 5 (great): average of the day's mood check-in and mind entries, or null. */
   mood: number | null;
+  /** 1 (calm) – 5 (very stressed), averaged over the day's mind entries, or null. */
+  stress: number | null;
+  activeCalories: number;
+  exerciseMinutes: number;
+  workouts: number;
 };
 
 export type MoodCheckin = { day: string; mood: number; note: string };
+
+export type Workout = {
+  id: number;
+  day: string;
+  type: string;
+  started_at: string;
+  duration_sec: number;
+  calories: number;
+  distance_km: number | null;
+  /** 1 (easy) – 5 (all out). */
+  effort: number;
+  note: string;
+};
+
+export type NewWorkout = Omit<Workout, 'id'>;
+
+export type MindEntry = {
+  id: number;
+  day: string;
+  created_at: string;
+  mood: number;
+  stress: number;
+  energy: number;
+  sleep: number;
+  emotions: string[];
+  journal: string;
+  gratitude: string;
+};
+
+export type NewMindEntry = Omit<MindEntry, 'id' | 'created_at'>;
 
 // --- Meals ---------------------------------------------------------------
 
@@ -133,6 +176,62 @@ export async function saveMoodCheckin(db: SQLiteDatabase, checkin: MoodCheckin) 
   );
 }
 
+// --- Workouts ------------------------------------------------------------
+
+export async function addWorkout(db: SQLiteDatabase, w: NewWorkout) {
+  await db.runAsync(
+    `INSERT INTO workouts (day, type, started_at, duration_sec, calories, distance_km, effort, note)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    w.day,
+    w.type,
+    w.started_at,
+    w.duration_sec,
+    w.calories,
+    w.distance_km,
+    w.effort,
+    w.note,
+  );
+}
+
+export function getRecentWorkouts(db: SQLiteDatabase, limit = 10) {
+  return db.getAllAsync<Workout>('SELECT * FROM workouts ORDER BY started_at DESC LIMIT ?', limit);
+}
+
+export async function deleteWorkout(db: SQLiteDatabase, id: number) {
+  await db.runAsync('DELETE FROM workouts WHERE id = ?', id);
+}
+
+// --- Mind entries ----------------------------------------------------------
+
+export async function addMindEntry(db: SQLiteDatabase, e: NewMindEntry) {
+  await db.runAsync(
+    `INSERT INTO mind_entries
+       (day, created_at, mood, stress, energy, sleep, emotions, journal, gratitude)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    e.day,
+    new Date().toISOString(),
+    e.mood,
+    e.stress,
+    e.energy,
+    e.sleep,
+    JSON.stringify(e.emotions),
+    e.journal,
+    e.gratitude,
+  );
+}
+
+export async function getRecentMindEntries(db: SQLiteDatabase, limit = 10): Promise<MindEntry[]> {
+  const rows = await db.getAllAsync<Omit<MindEntry, 'emotions'> & { emotions: string }>(
+    'SELECT * FROM mind_entries ORDER BY created_at DESC LIMIT ?',
+    limit,
+  );
+  return rows.map((r) => ({ ...r, emotions: JSON.parse(r.emotions) as string[] }));
+}
+
+export async function deleteMindEntry(db: SQLiteDatabase, id: number) {
+  await db.runAsync('DELETE FROM mind_entries WHERE id = ?', id);
+}
+
 // --- Summaries -----------------------------------------------------------
 
 /** Per-day totals for every day in `[from, to]`, including empty days. */
@@ -160,8 +259,31 @@ export async function getDaySummaries(
     from,
     to,
   );
+  // The quick daily check-in and full mind entries both say how the day felt.
   const moodRows = await db.getAllAsync<{ day: string; mood: number }>(
-    'SELECT day, mood FROM mood_checkins WHERE day BETWEEN ? AND ?',
+    `SELECT day, AVG(mood) AS mood FROM (
+       SELECT day, mood FROM mood_checkins WHERE day BETWEEN ? AND ?
+       UNION ALL
+       SELECT day, mood FROM mind_entries WHERE day BETWEEN ? AND ?
+     ) GROUP BY day`,
+    from,
+    to,
+    from,
+    to,
+  );
+  const stressRows = await db.getAllAsync<{ day: string; stress: number }>(
+    'SELECT day, AVG(stress) AS stress FROM mind_entries WHERE day BETWEEN ? AND ? GROUP BY day',
+    from,
+    to,
+  );
+  const workoutRows = await db.getAllAsync<{
+    day: string;
+    calories: number;
+    seconds: number;
+    count: number;
+  }>(
+    `SELECT day, SUM(calories) AS calories, SUM(duration_sec) AS seconds, COUNT(*) AS count
+     FROM workouts WHERE day BETWEEN ? AND ? GROUP BY day`,
     from,
     to,
   );
@@ -170,6 +292,8 @@ export async function getDaySummaries(
   const meditation = new Map(meditationRows.map((r) => [r.day, r.minutes]));
   const water = new Map(waterRows.map((r) => [r.day, r.ml]));
   const moods = new Map(moodRows.map((r) => [r.day, r.mood]));
+  const stress = new Map(stressRows.map((r) => [r.day, r.stress]));
+  const workouts = new Map(workoutRows.map((r) => [r.day, r]));
 
   const result: DaySummary[] = [];
   for (let day = from; day <= to; day = addDays(day, 1)) {
@@ -183,19 +307,25 @@ export async function getDaySummaries(
       meditationMinutes: meditation.get(day) ?? 0,
       waterMl: water.get(day) ?? 0,
       mood: moods.get(day) ?? null,
+      stress: stress.get(day) ?? null,
+      activeCalories: workouts.get(day)?.calories ?? 0,
+      exerciseMinutes: (workouts.get(day)?.seconds ?? 0) / 60,
+      workouts: workouts.get(day)?.count ?? 0,
     });
   }
   return result;
 }
 
 /**
- * Consecutive days, ending today, with any activity (meal, meditation, water or check-in).
+ * Consecutive days, ending today, with any activity (meal, workout, meditation, water or
+ * check-in).
  * Today without activity yet doesn't break a streak that ran through yesterday.
  */
 export async function getStreak(db: SQLiteDatabase): Promise<number> {
   const rows = await db.getAllAsync<{ day: string }>(
     `SELECT day FROM meals UNION SELECT day FROM meditation_sessions
      UNION SELECT day FROM water_logs UNION SELECT day FROM mood_checkins
+     UNION SELECT day FROM workouts UNION SELECT day FROM mind_entries
      ORDER BY day DESC`,
   );
   const active = new Set(rows.map((r) => r.day));
