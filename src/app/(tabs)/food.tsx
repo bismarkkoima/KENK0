@@ -3,15 +3,13 @@ import { useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Screen, SectionTitle } from '@/components/ui';
-import { Spacing } from '@/constants/theme';
+import { Button, Card, Glass, IconButton, Screen, SectionTitle } from '@/components/ui';
+import { Radius, Spacing } from '@/constants/theme';
 import { deleteMeal, getMealsForDay, MEAL_TYPES, type Meal } from '@/db/queries';
 import { useFocusedQuery } from '@/hooks/use-focused-query';
-import { useTheme } from '@/hooks/use-theme';
 import { addDays, formatDayLabel, toDayKey } from '@/lib/dates';
 
 export default function FoodScreen() {
-  const theme = useTheme();
   const [day, setDay] = useState(toDayKey());
   const { data: meals = [], reload, db } = useFocusedQuery((db) => getMealsForDay(db, day), day);
   const isToday = day === toDayKey();
@@ -34,23 +32,32 @@ export default function FoodScreen() {
 
   return (
     <Screen title="Food log">
-      <View style={styles.dayNav}>
-        <Pressable onPress={() => setDay(addDays(day, -1))} hitSlop={12}>
-          <ThemedText style={{ color: theme.tint }}>‹ Prev</ThemedText>
-        </Pressable>
+      <Glass radius={Radius.pill} style={styles.dayNav}>
+        <IconButton
+          icon={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }}
+          label="Previous day"
+          size={40}
+          onPress={() => setDay(addDays(day, -1))}
+        />
         <View style={styles.dayCenter}>
           <ThemedText type="smallBold">{formatDayLabel(day)}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
             {Math.round(total)} kcal
           </ThemedText>
         </View>
-        <Pressable disabled={isToday} onPress={() => setDay(addDays(day, 1))} hitSlop={12}>
-          <ThemedText style={{ color: theme.tint, opacity: isToday ? 0.3 : 1 }}>Next ›</ThemedText>
-        </Pressable>
-      </View>
+        <View style={{ opacity: isToday ? 0.3 : 1 }} pointerEvents={isToday ? 'none' : 'auto'}>
+          <IconButton
+            icon={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+            label="Next day"
+            size={40}
+            onPress={() => setDay(addDays(day, 1))}
+          />
+        </View>
+      </Glass>
 
       <Button
         label="Log food"
+        icon={{ ios: 'plus', android: 'add', web: 'add' }}
         onPress={() => router.push({ pathname: '/add-meal', params: { day } })}
       />
 
@@ -112,6 +119,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    padding: Spacing.one + 2,
   },
   dayCenter: {
     alignItems: 'center',

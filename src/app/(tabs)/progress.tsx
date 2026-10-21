@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Card, Chip, Screen, SectionTitle, Stat } from '@/components/ui';
+import { Card, Chip, GradientFill, Screen, SectionTitle, Stat } from '@/components/ui';
 import { moodEmoji } from '@/components/wellness-cards';
-import { Spacing, type ThemeColor } from '@/constants/theme';
+import { Spacing, type GradientName } from '@/constants/theme';
 import { getDaySummaries, getGoals, getStreak, type DaySummary } from '@/db/queries';
 import { useFocusedQuery } from '@/hooks/use-focused-query';
 import { useTheme } from '@/hooks/use-theme';
@@ -72,7 +72,7 @@ export default function ProgressScreen() {
 
       <SectionTitle>Mood</SectionTitle>
       <Card>
-        <BarChart days={days} pick={(d) => d.mood ?? 0} max={5} color="tint" />
+        <BarChart days={days} pick={(d) => d.mood ?? 0} max={5} color="warm" />
         <ThemedText type="small" themeColor="textSecondary">
           {s.checkinDays
             ? `Checked in on ${s.checkinDays} of ${range} days · 1 = low, 5 = great`
@@ -119,7 +119,7 @@ function BarChart({
   goal?: number;
   /** Fixed top of the scale (e.g. 5 for mood); otherwise fits the data and goal. */
   max?: number;
-  color: ThemeColor;
+  color: GradientName;
   /** Fade bars that overshoot the goal by more than 10%. */
   warnOver?: boolean;
 }) {
@@ -127,10 +127,12 @@ function BarChart({
   const values = days.map(pick);
   const max = fixedMax ?? Math.max((goal ?? 0) * 1.25, ...values, 1);
   const showLabels = days.length <= 7;
+  const barRadius = days.length <= 7 ? 10 : 4;
+  const gap = days.length <= 7 ? 10 : 3;
 
   return (
     <View>
-      <View style={styles.chart}>
+      <View style={[styles.chart, { gap }]}>
         {goal !== undefined && (
           <View
             style={[
@@ -140,21 +142,29 @@ function BarChart({
           />
         )}
         {days.map((d, i) => (
-          <View key={d.day} style={styles.barSlot}>
-            <View
-              style={{
-                height: `${(values[i] / max) * 100}%`,
-                minHeight: values[i] > 0 ? 3 : 0,
-                borderRadius: 4,
-                backgroundColor: theme[color],
-                opacity: warnOver && goal !== undefined && values[i] > goal * 1.1 ? 0.6 : 1,
-              }}
-            />
+          <View
+            key={d.day}
+            style={[
+              styles.barSlot,
+              { backgroundColor: theme.backgroundSelected, borderRadius: barRadius },
+            ]}>
+            {values[i] > 0 && (
+              <GradientFill
+                name={color}
+                angle={0}
+                style={{
+                  height: `${(values[i] / max) * 100}%`,
+                  minHeight: barRadius * 2,
+                  borderRadius: barRadius,
+                  opacity: warnOver && goal !== undefined && values[i] > goal * 1.1 ? 0.55 : 1,
+                }}
+              />
+            )}
           </View>
         ))}
       </View>
       {showLabels && (
-        <View style={styles.labels}>
+        <View style={[styles.labels, { gap }]}>
           {days.map((d) => (
             <ThemedText key={d.day} type="small" themeColor="textSecondary" style={styles.label}>
               {shortWeekday(d.day)}
@@ -179,7 +189,6 @@ const styles = StyleSheet.create({
     height: 140,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 3,
   },
   goalLine: {
     position: 'absolute',
@@ -196,7 +205,6 @@ const styles = StyleSheet.create({
   },
   labels: {
     flexDirection: 'row',
-    gap: 3,
     marginTop: Spacing.one,
   },
   label: {
