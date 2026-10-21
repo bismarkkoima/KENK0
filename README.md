@@ -87,8 +87,11 @@ eas login
 eas build --profile preview --platform android   # or: --platform ios
 ```
 
-The first build asks you to pick an app identifier (for example `com.yourname.kenko`) — keep
-it, because it can't be changed once the app is published.
+The app identifier is already set to `com.bismarkkoima.kenko`, with the icon, splash screen
+and permissions configured. The first time, run `eas init` after `eas login` to link the
+project to your Expo account. Full release steps, store listing text and the privacy policy
+are in [docs/RELEASE.md](docs/RELEASE.md), [docs/store-listing.md](docs/store-listing.md) and
+[docs/privacy-policy.md](docs/privacy-policy.md).
 
 **Android:** when the build finishes, EAS prints a link and QR code. Open it on the phone,
 download the `.apk` and tap it to install. Android will ask you to allow installing apps from
